@@ -33,6 +33,7 @@ namespace skydiag::monitor
 		const wchar_t* dataDir{ nullptr };    // session.bin
 		const wchar_t* skseDir{ nullptr };    // the SKSE log folder (Crash Logger logs)
 		const wchar_t* logPath{ nullptr };    // the log file of the monitor
+		const wchar_t* modsFile{ nullptr };   // mods.tsv of the MO2 plugin: copied next to a crash report
 		std::uint32_t  freezeSeconds{ 30 };
 		bool           openReport{ true };
 		bool           writeMinidump{ true };

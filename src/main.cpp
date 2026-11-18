@@ -139,8 +139,20 @@ namespace
 		if (skydiag::modmap::Loaded()) {
 			return;
 		}
-		if (skydiag::modmap::Load(GameDir() / "Data" / "SKSE" / "Plugins" / "SkyrimDiagnostics")) {
+		const auto folder = GameDir() / "Data" / "SKSE" / "Plugins" / "SkyrimDiagnostics";
+		if (skydiag::modmap::Load(folder)) {
 			SKSE::log::info("Mod Organizer 2 data: {} files of {} mods.", skydiag::modmap::FileCount(), skydiag::modmap::ModCount());
+			// profile.txt: "<profile name><tab><active mods>" (the MO2 plugin writes it at the game start).
+			std::ifstream profile(folder / "profile.txt");
+			std::string   line;
+			if (profile && std::getline(profile, line)) {
+				const auto  tab = line.find('\t');
+				const auto  name = line.substr(0, tab);
+				const auto  mods = tab == std::string::npos ? ""s : line.substr(tab + 1);
+				const auto  text = fmt::format("Mod Organizer 2, profile \"{}\", {} active mods (list: {})", name, mods, (folder / "mods.tsv").string());
+				skydiag::crash::SetSetup(text.c_str());
+				SKSE::log::info("{}", text);
+			}
 		}
 	}
 
@@ -225,6 +237,8 @@ namespace
 			options.dataDir = data.c_str();
 			options.skseDir = skse.c_str();
 			options.logPath = monitorLog.c_str();
+			static const std::wstring mods = (GameDir() / "Data" / "SKSE" / "Plugins" / "SkyrimDiagnostics" / "mods.tsv").wstring();
+			options.modsFile = mods.c_str();
 			options.freezeSeconds = static_cast<std::uint32_t>(g_settings.stallSeconds);
 			options.openReport = g_settings.openReport;
 			if (skydiag::monitor::Start(options)) {

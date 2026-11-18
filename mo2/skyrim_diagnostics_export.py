@@ -139,6 +139,15 @@ class SkyrimDiagnosticsExport(mobase.IPlugin):
                 out.write(f"{priority}\t{name}\t{version}\n")
                 scan(name, mod.absolutePath())
 
+        # The MO2 profile and the number of active mods, for the "Mod setup"
+        # line of the crash reports.
+        try:
+            profile = self._organizer.profileName()
+        except Exception:
+            profile = ""
+        with open(os.path.join(out_dir, "profile.txt"), "w", encoding="utf-8", newline="\n") as out:
+            out.write(f"{profile}\t{len(active)}\n")
+
         # The overwrite folder wins over all mods.
         scan("<overwrite>", self._organizer.overwritePath())
 

@@ -57,6 +57,8 @@ namespace skydiag::monitor
 			wchar_t         dataDir[600];
 			wchar_t         skseDir[600];
 			wchar_t         logPath[600];
+			wchar_t         modsFile[600];
+			wchar_t         pluginsDir[600];  // the folder of this DLL (Data/SKSE/Plugins)
 		};
 
 		Shared* g_shared = nullptr;
@@ -398,6 +400,119 @@ namespace skydiag::monitor
 			Log("Crash Logger log added to the crash report: %s", name);
 		}
 
+		// ---------------------------------------------- PDB function names
+
+		// For each call stack frame in a mod DLL that has a PDB file next to
+		// it (in the folder of the SKSE plugins): the function name and the
+		// source line. Added to the end of the crash report.
+		void AddPdbNames(const wchar_t* a_report)
+		{
+			static char text[2 * 1024 * 1024];
+			const HANDLE in = CreateFileW(a_report, GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE, nullptr, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr);
+			if (in == INVALID_HANDLE_VALUE) {
+				return;
+			}
+			DWORD read = 0;
+			ReadFile(in, text, sizeof(text) - 1, &read, nullptr);
+			CloseHandle(in);
+			text[read] = '\0';
+			const char* begin = strstr(text, "\n== CALL STACK ==\n");
+			if (!begin) {
+				return;
+			}
+			begin += 18;
+			const char* end = strstr(begin, "\n== ");
+			if (!end) {
+				end = text + read;
+			}
+
+			const HANDLE self = GetCurrentProcess();
+			SymSetOptions(SYMOPT_LOAD_LINES | SYMOPT_UNDNAME | SYMOPT_FAIL_CRITICAL_ERRORS);
+			if (!SymInitializeW(self, g_shared->pluginsDir, FALSE)) {
+				return;
+			}
+			struct Loaded
+			{
+				char      name[96];
+				DWORD64   base;  // 0 = no PDB
+			};
+			static Loaded loaded[64];
+			int           loadedCount = 0;
+
+			static char section[256 * 1024];
+			Out         out{ section, sizeof(section), 0 };
+			section[0] = '\0';
+			int found = 0;
+			for (const char* line = begin; line < end;) {
+				const char* next = static_cast<const char*>(memchr(line, '\n', static_cast<std::size_t>(end - line)));
+				const char* lineEnd = next ? next : end;
+				int                frame = -1;
+				unsigned long long address = 0;
+				char               where[160] = "";
+				if (sscanf_s(line, "#%d 0x%llX %159s", &frame, &address, where, static_cast<unsigned>(sizeof(where))) == 3) {
+					char* plus = strrchr(where, '+');
+					if (plus && plus - where > 4 && _strnicmp(plus - 4, ".dll", 4) == 0) {
+						*plus = '\0';
+						const unsigned long long offset = std::strtoull(plus + 1, nullptr, 16);
+						int k = 0;
+						for (; k < loadedCount && _stricmp(loaded[k].name, where) != 0; ++k) {
+						}
+						if (k == loadedCount && loadedCount < 64) {
+							Loaded& l = loaded[loadedCount++];
+							strncpy_s(l.name, where, _TRUNCATE);
+							l.base = 0;
+							wchar_t wide[96];
+							MultiByteToWideChar(CP_UTF8, 0, where, -1, wide, static_cast<int>(std::size(wide)));
+							wchar_t dll[800], pdb[800];
+							swprintf_s(dll, L"%s\\%s", g_shared->pluginsDir, wide);
+							wcsncpy_s(pdb, dll, _TRUNCATE);
+							if (wchar_t* dot = wcsrchr(pdb, L'.')) {
+								wcscpy_s(dot, 5, L".pdb");
+							}
+							if (GetFileAttributesW(dll) != INVALID_FILE_ATTRIBUTES && GetFileAttributesW(pdb) != INVALID_FILE_ATTRIBUTES) {
+								const DWORD64 base = 0x100000000ull * static_cast<DWORD64>(loadedCount);
+								l.base = SymLoadModuleExW(self, nullptr, dll, nullptr, base, 0, nullptr, 0);
+							}
+						}
+						if (k < loadedCount && loaded[k].base != 0) {
+							alignas(SYMBOL_INFO) char buffer[sizeof(SYMBOL_INFO) + 512];
+							auto*                     symbol = reinterpret_cast<SYMBOL_INFO*>(buffer);
+							symbol->SizeOfStruct = sizeof(SYMBOL_INFO);
+							symbol->MaxNameLen = 511;
+							DWORD64 displacement = 0;
+							if (SymFromAddr(self, loaded[k].base + offset, &displacement, symbol)) {
+								Put(out, "#%-3d %s+%llX  %s+0x%llX", frame, where, offset, symbol->Name, static_cast<unsigned long long>(displacement));
+								IMAGEHLP_LINE64 lineInfo{};
+								lineInfo.SizeOfStruct = sizeof(lineInfo);
+								DWORD lineDisplacement = 0;
+								if (SymGetLineFromAddr64(self, loaded[k].base + offset, &lineDisplacement, &lineInfo)) {
+									const char* file = strrchr(lineInfo.FileName, '\\');
+									Put(out, "  (%s line %lu)", file ? file + 1 : lineInfo.FileName, lineInfo.LineNumber);
+								}
+								Put(out, "\n");
+								++found;
+							}
+						}
+					}
+				}
+				line = next ? next + 1 : end;
+			}
+			SymCleanup(self);
+			if (found == 0) {
+				return;
+			}
+			const HANDLE file = CreateFileW(a_report, FILE_APPEND_DATA, FILE_SHARE_READ, nullptr, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr);
+			if (file == INVALID_HANDLE_VALUE) {
+				return;
+			}
+			const char head[] = "\n== FUNCTION NAMES (from the PDB files of mod DLLs) ==\n";
+			DWORD      written = 0;
+			WriteFile(file, head, static_cast<DWORD>(sizeof(head) - 1), &written, nullptr);
+			WriteFile(file, out.buf, static_cast<DWORD>(out.len), &written, nullptr);
+			CloseHandle(file);
+			Log("Function names from PDB files added to the crash report: %d frames.", found);
+		}
+
 		// ------------------------------------------------------- after exit
 
 		void AfterExit(HANDLE a_process)
@@ -408,7 +523,20 @@ namespace skydiag::monitor
 			Log("The game process ended with exit code 0x%08lX%s.", code, closing ? " after a quit or close request" : "");
 
 			if (g_shared->reportState == 1) {
+				AddPdbNames(g_shared->reportPath);
 				AddCrashLoggerLog(g_shared->reportPath, g_shared->crashFileTime);
+				// The MO2 mod list of this game start, next to the report (the next start writes a new one).
+				if (g_shared->modsFile[0] && GetFileAttributesW(g_shared->modsFile) != INVALID_FILE_ATTRIBUTES) {
+					wchar_t copy[800];
+					wcsncpy_s(copy, g_shared->reportPath, _TRUNCATE);
+					if (wchar_t* dot = wcsrchr(copy, L'.')) {
+						*dot = L'\0';
+					}
+					wcsncat_s(copy, L"-mods.tsv", _TRUNCATE);
+					if (CopyFileW(g_shared->modsFile, copy, FALSE)) {
+						Log("MO2 mod list copied next to the crash report.");
+					}
+				}
 				if (g_shared->optOpenReport && g_shared->openReport) {
 					const auto result = reinterpret_cast<INT_PTR>(ShellExecuteW(nullptr, L"open", g_shared->reportPath, nullptr, nullptr, SW_SHOWNORMAL));
 					Log("Crash report opened (result %lld).", static_cast<long long>(result));
@@ -488,6 +616,11 @@ namespace skydiag::monitor
 		wcsncpy_s(shared->dataDir, a_options.dataDir, _TRUNCATE);
 		wcsncpy_s(shared->skseDir, a_options.skseDir ? a_options.skseDir : L"", _TRUNCATE);
 		wcsncpy_s(shared->logPath, a_options.logPath ? a_options.logPath : L"", _TRUNCATE);
+		wcsncpy_s(shared->modsFile, a_options.modsFile ? a_options.modsFile : L"", _TRUNCATE);
+		wcsncpy_s(shared->pluginsDir, dllPath, _TRUNCATE);
+		if (wchar_t* slash = wcsrchr(shared->pluginsDir, L'\\')) {
+			*slash = L'\0';
+		}
 
 		wchar_t eventName[160];
 		Name(eventName, std::size(eventName), pid, L"-Dump");

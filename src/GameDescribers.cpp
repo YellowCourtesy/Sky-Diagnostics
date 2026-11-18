@@ -59,10 +59,27 @@ namespace skydiag
 
 			const char* first = FileName(a_form->GetFile(0));
 			const char* last = FileName(a_form->GetFile(-1));
+			const auto* files = a_form->sourceFiles.array;
+			const auto  fileCount = files ? files->size() : 0u;
 			if (first && last && first != last) {
+				// All plugins that change the form: the last one is the version the game uses.
 				Append(a_out, a_cap, " (from ");
 				AppendText(a_out, a_cap, first, 80);
-				Append(a_out, a_cap, ", last changed by ");
+				if (fileCount > 2) {
+					Append(a_out, a_cap, ", changed by ");
+					for (std::uint32_t i = 1; i + 1 < fileCount && i < 9; ++i) {
+						if (const char* name = FileName((*files)[i])) {
+							AppendText(a_out, a_cap, name, 80);
+							Append(a_out, a_cap, ", ");
+						}
+					}
+					if (fileCount > 10) {
+						Append(a_out, a_cap, "%u more, ", static_cast<unsigned>(fileCount - 10));
+					}
+					Append(a_out, a_cap, "last changed by ");
+				} else {
+					Append(a_out, a_cap, ", last changed by ");
+				}
 				AppendText(a_out, a_cap, last, 80);
 				Append(a_out, a_cap, ")");
 			} else if (last) {
@@ -71,6 +88,12 @@ namespace skydiag
 				Append(a_out, a_cap, ")");
 			}
 			return last;
+		}
+
+		bool BaseIsDynamic(const RE::TESObjectREFR* a_reference)
+		{
+			const auto base = a_reference->GetBaseObject();
+			return base && base->IsDynamicForm();
 		}
 
 		void DescribeForm(void* a_subobject, char* a_text, std::size_t a_textCap, char* a_source, std::size_t a_sourceCap)
@@ -88,6 +111,27 @@ namespace skydiag
 					if (!source) {
 						source = baseSource;
 					}
+				}
+				// An actor from a leveled list has a base NPC made at run time
+				// (FFxxxxxx, no plugin). The NPC it was made from has a plugin.
+				for (const auto& extra : reference->extraList) {
+					if (extra.GetType() != RE::ExtraDataType::kLeveledCreature) {
+						continue;
+					}
+					// Both forms of the extra data are written: which one has the plugin
+					// that made the actor differs between leveled lists and templates.
+					const auto* leveled = static_cast<const RE::ExtraLeveledCreature*>(&extra);
+					for (const RE::TESForm* from : { static_cast<const RE::TESForm*>(leveled->originalBase), static_cast<const RE::TESForm*>(leveled->templateBase) }) {
+						if (!from) {
+							continue;
+						}
+						Append(a_text, a_textCap, from == leveled->originalBase ? "; leveled actor, original base: " : "; template: ");
+						const char* fromSource = AppendForm(a_text, a_textCap, from);
+						if (fromSource && (!source || BaseIsDynamic(reference))) {
+							source = fromSource;
+						}
+					}
+					break;
 				}
 			}
 
