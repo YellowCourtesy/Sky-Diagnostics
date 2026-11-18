@@ -67,10 +67,48 @@ jobs:
       - name: Set up CMake and Ninja
         uses: lukka/get-cmake@latest
 
+      # Rule: build with the compiler of the newest CommonLibSSE prebuilt, so that
+      # the prebuilt is used (a different compiler version makes CommonLibSSE
+      # build itself from source, which takes much longer). The prebuilt of the
+      # CommonLibSSE release in lib/commonlibsse-ng has the version of its
+      # compiler in TOOLSET_VERSION.txt (cl 19.NN is toolset 14.NN). If that
+      # toolset is not on the build machine, the default compiler is used and
+      # CommonLibSSE builds from source.
+      - name: Find the compiler of the CommonLibSSE prebuilt
+        id: toolset
+        shell: pwsh
+        run: |
+          git -C lib/commonlibsse-ng fetch --tags --depth=1 origin 2>$null
+          $tag = git -C lib/commonlibsse-ng describe --tags --exact-match 2>$null
+          if (-not $tag) { Write-Warning "lib/commonlibsse-ng is not at a release tag: no prebuilt, the default compiler is used."; exit 0 }
+          $url = "https://github.com/alandtse/CommonLibSSE-NG/releases/download/$tag/commonlibsse-ng-prebuilt-$tag-all-msvc-cmake.zip"
+          $zip = "$env:RUNNER_TEMP/commonlib-prebuilt.zip"
+          try { Invoke-WebRequest -UseBasicParsing -Uri $url -OutFile $zip } catch {
+            Write-Warning "The CommonLibSSE prebuilt of $tag could not be downloaded: the default compiler is used."; exit 0 }
+          Add-Type -AssemblyName System.IO.Compression.FileSystem
+          $archive = [System.IO.Compression.ZipFile]::OpenRead($zip)
+          $entry = $archive.Entries | Where-Object { $_.FullName -match '(^|/)TOOLSET_VERSION\.txt$' } | Select-Object -First 1
+          if (-not $entry) { $archive.Dispose(); Write-Warning "The prebuilt of $tag has no TOOLSET_VERSION.txt: the default compiler is used."; exit 0 }
+          $reader = New-Object System.IO.StreamReader($entry.Open())
+          $version = $reader.ReadToEnd().Trim()
+          $reader.Close()
+          $archive.Dispose()
+          if ($version -notmatch '^19\.(\d+)') { Write-Warning "Unknown compiler version '$version' in the prebuilt: the default compiler is used."; exit 0 }
+          $toolset = "14.$($Matches[1])"
+          $vs = & "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe" -latest -property installationPath
+          $installed = @(Get-ChildItem "$vs\VC\Tools\MSVC" -Directory | ForEach-Object Name)
+          if ($installed | Where-Object { $_ -like "$toolset.*" }) {
+            "toolset=$toolset" >> $env:GITHUB_OUTPUT
+            Write-Host "CommonLibSSE $tag prebuilt: compiler $version, toolset $toolset is used."
+          } else {
+            Write-Warning "CommonLibSSE $tag prebuilt needs toolset $toolset (compiler $version). The build machine has: $($installed -join ', '). The default compiler is used, and CommonLibSSE builds from source."
+          }
+
       - name: Set up MSVC
         uses: ilammy/msvc-dev-cmd@v1
         with:
           arch: x64
+          toolset: ${{ steps.toolset.outputs.toolset }}
 
       - name: Configure
         run: cmake --preset release
