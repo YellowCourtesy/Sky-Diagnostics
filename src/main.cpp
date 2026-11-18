@@ -973,7 +973,7 @@ namespace
 				return setting->GetBool() ? 1.0 : 0.0;
 			case RE::Setting::Type::kFloat:
 				return static_cast<double>(setting->GetFloat());
-			case RE::Setting::Type::kSignedInteger:
+			case RE::Setting::Type::kInteger:
 				return static_cast<double>(setting->GetInteger());
 			case RE::Setting::Type::kUnsignedInteger:
 				return static_cast<double>(setting->GetUnsignedInteger());
