@@ -57,6 +57,19 @@ The default text of this file is `SkyrimDiagnostics.ini` at the top level of
 this repository. The build puts that file into the DLL. To change the
 defaults, change that file and build again.
 
+The file is not in the mod package: the tool makes it on the first start, so
+an update of the mod does not replace your file. Its second line is the
+version of the tool that made or updated it (`# Config version: 0.1.0`). When
+a different version starts, it adds to the file, in place, what the file does
+not have: settings (with their comments, at the end of their `[Section]`),
+layout parts (at the end of their section) and suggestion sections. Your
+values, comments and order stay. Then the version line changes, and a message
+box at the main menu lists what was added. Settings that a new version does
+not use any more stay in the file; the tool ignores them.
+
+In the default file, the version line has the text `@VERSION@`; the tool puts
+its version there.
+
 ## Use
 
 - The overlay needs AbyssusLib 2 or later (a separate SKSE plugin). AbyssusLib

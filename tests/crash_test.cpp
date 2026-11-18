@@ -7,6 +7,7 @@
 #include "../src/crash/Session.h"
 #include "../src/gfx/Advisor.h"
 #include "../src/gfx/FrameStats.h"
+#include "../src/Config.h"
 #include "../src/Report.h"
 #include "../src/Settings.h"
 
@@ -341,9 +342,20 @@ int wmain(int argc, wchar_t** argv)
 		                parsed.warningHoldSeconds == 12.5f && parsed.fpsBelow == 45.0f &&
 		                !parsed.profiler && parsed.papyrus && parsed.stallSeconds == 90 && defaults.animations && !parsed.animations && defaults.memoryByDll && !parsed.memoryByDll &&
 		                defaults.papyrusTime && !parsed.papyrusTime;
-		std::printf("settings %s\n", ok ? "ok" : "wrong");
+
+		// Config update: an old file (no version line, no WarningHoldSeconds,
+		// no "graph") gets the missing lines in place and keeps its values.
+		const auto update = skydiag::config::Update("# title\n[[Settings]]\n[Overlay]\n[Warnings]\nFpsBelow = 45\n[[Layout]]\n[Frames]\nfps\n", "9.9.9");
+		const auto again = skydiag::config::Update(update.text, "9.9.9");
+		const bool updateOk = update.changed && update.oldVersion.empty() && skydiag::config::VersionOf(update.text) == "9.9.9" &&
+		                      update.text.find("WarningHoldSeconds = 30") != std::string::npos && update.text.find("\ngraph\n") != std::string::npos &&
+		                      update.text.find("FpsBelow = 45\n") != std::string::npos && skydiag::ParseSettings(skydiag::config::Split(update.text).settings).fpsBelow == 45.0f &&
+		                      !again.changed;
+		std::printf("config update %s\n", updateOk ? "ok" : "wrong");
+		const bool allOk = ok && updateOk;
+		std::printf("settings %s\n", allOk ? "ok" : "wrong");
 		skydiag::session::NoteCleanExit();
-		return ok ? 60 : 61;
+		return allOk ? 60 : 61;
 	}
 	if (std::wcscmp(mode, L"advisor") == 0) {
 		using namespace skydiag::advisor;

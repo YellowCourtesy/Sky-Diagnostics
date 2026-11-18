@@ -122,6 +122,7 @@ target_compile_definitions(
 	${PROJECT_NAME}
 	PRIVATE
 		SKYDIAG_VERSION="${PROJECT_VERSION} build ${SKYDIAG_BUILD}"
+		SKYDIAG_CONFIG_VERSION="${PROJECT_VERSION}"
 )
 
 if(MSVC)
@@ -146,7 +147,9 @@ endif()
 # Install tree = a mod folder that MO2 can install directly.
 install(TARGETS ${PROJECT_NAME} RUNTIME DESTINATION "SKSE/Plugins" COMPONENT main)
 install(FILES "$<TARGET_PDB_FILE:${PROJECT_NAME}>" DESTINATION "SKSE/Plugins" COMPONENT main OPTIONAL)
-install(FILES SkyrimDiagnostics.ini DESTINATION "SKSE/Plugins" COMPONENT main)
+# SkyrimDiagnostics.ini is not in the package: the tool makes it on the first
+# start, and a new version adds its new settings to it. A file in the
+# package would replace the player's file at each update.
 install(FILES mo2/skyrim_diagnostics_export.py DESTINATION "MO2-plugin" COMPONENT main)
 
 if(SKYDIAG_BUILD_TESTS)

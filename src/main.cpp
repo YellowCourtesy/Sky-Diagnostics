@@ -127,6 +127,7 @@ namespace
 		return file;
 	}
 	std::string           g_layoutText;  // its [[Layout]] part
+	std::vector<std::string> g_configAdded;  // what this version added to the file, for the message at the main menu
 
 	// Reads the files that the Mod Organizer 2 plugin wrote. The game sees
 	// them in its Data folder.
@@ -781,10 +782,23 @@ namespace
 			SKSE::log::info("Game data is loaded.");
 			// All plugins are loaded now: AbyssusLib can be found.
 			SKSE::log::info("AbyssusLib: {}", abyssus::HasWindows() ? "found" : (abyssus::IsAvailable() ? "found, but too old for windows" : "not found"));
-			if (!abyssus::HasWindows()) {
-				RE::DebugMessageBox(abyssus::IsAvailable() ?
-				                        "SkyrimDiagnostics\n\nThe installed AbyssusLib is too old. Install AbyssusLib 2 or later. The overlay does not show. The reports work." :
-				                        "SkyrimDiagnostics\n\nAbyssusLib was not found. The overlay does not show. The reports work.");
+			{
+				// One message box at the main menu with all that the player must know.
+				std::string text;
+				if (!g_configAdded.empty()) {
+					text += "This version added new settings to SkyrimDiagnostics.ini, with their default values:\n";
+					for (const auto& added : g_configAdded) {
+						text += "  " + added + "\n";
+					}
+				}
+				if (!abyssus::HasWindows()) {
+					text += (text.empty() ? "" : "\n") + std::string(abyssus::IsAvailable() ?
+					                     "The installed AbyssusLib is too old. Install AbyssusLib 2 or later. The overlay does not show. The reports work." :
+					                     "AbyssusLib was not found. The overlay does not show. The reports work.");
+				}
+				if (!text.empty()) {
+					RE::DebugMessageBox(("SkyrimDiagnostics\n\n" + text).c_str());
+				}
 			}
 			skydiag::session::Event("Game data loaded");
 			g_dataLoaded = true;
@@ -863,11 +877,27 @@ namespace
 			{
 				std::error_code ec;
 				const bool      before = std::filesystem::exists(ConfigFile(), ec);
-				const bool      made = skydiag::config::WriteDefaultIfMissing(ConfigFile());
+				const bool      made = !before && skydiag::config::WriteDefaultIfMissing(ConfigFile(), SKYDIAG_CONFIG_VERSION);
 				if (made) {
 					SKSE::log::info("The configuration file {} was made with the default text. With Mod Organizer 2, look for it in the overwrite folder.",
 						ConfigFile().string());
-				} else if (!before) {
+				} else if (before) {
+					// A file of an earlier version: add the new settings in place.
+					std::string error;
+					const auto  update = skydiag::config::UpdateFile(ConfigFile(), SKYDIAG_CONFIG_VERSION, error);
+					if (!error.empty()) {
+						SKSE::log::error("Configuration file: the update to version {} failed: {}", SKYDIAG_CONFIG_VERSION, error);
+					} else if (update.changed) {
+						g_configAdded = update.added;
+						std::string added;
+						for (const auto& item : update.added) {
+							added += (added.empty() ? "" : ", ") + item;
+						}
+						SKSE::log::info("Configuration file: updated from version {} to {}. Added: {}", update.oldVersion.empty() ? "(none)" : update.oldVersion,
+							SKYDIAG_CONFIG_VERSION, added.empty() ? "nothing" : added);
+					}
+				}
+				if (!before && !made) {
 					SKSE::log::error("The configuration file {} does not exist and the tool could not make it. The default settings are used.",
 						ConfigFile().string());
 				} else {
