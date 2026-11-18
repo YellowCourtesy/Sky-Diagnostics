@@ -162,6 +162,8 @@ namespace
 	// Starts the memory count for the mod DLLs that are loaded now.
 	void HookModMemory();
 
+	skydiag::Settings g_settings;  // read from the configuration file at the start
+
 	void InstallCrashHandler(const char* a_platform)
 	{
 		const auto logDir = SkseLogDir();
@@ -256,7 +258,6 @@ namespace
 
 	using Clock = std::chrono::steady_clock;
 
-	skydiag::Settings       g_settings;
 	const Clock::time_point g_pluginStart = Clock::now();
 
 	// Heartbeat of the game update thread. The watchdog posts a request and
@@ -708,9 +709,9 @@ namespace
 					if (change >= skydiag::report::kNotifyChange || change <= -skydiag::report::kNotifyChange) {
 						if (abyssus::IsAvailable()) {
 							skydiag::overlay::PostNote(comparison.c_str(), 45.0f);
-						} else if (const auto tasks = SKSE::GetTaskInterface()) {
+						} else if (const auto hudTasks = SKSE::GetTaskInterface()) {
 							// Without AbyssusLib: the game's notification, on the main thread.
-							tasks->AddTask([text = comparison]() { RE::SendHUDMessage::ShowHUDMessage(text.c_str()); });
+							hudTasks->AddTask([text = comparison]() { RE::SendHUDMessage::ShowHUDMessage(text.c_str()); });
 						}
 					}
 				}

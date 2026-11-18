@@ -445,7 +445,6 @@ namespace skydiag::monitor
 			int found = 0;
 			for (const char* line = begin; line < end;) {
 				const char* next = static_cast<const char*>(memchr(line, '\n', static_cast<std::size_t>(end - line)));
-				const char* lineEnd = next ? next : end;
 				int                frame = -1;
 				unsigned long long address = 0;
 				char               where[160] = "";
