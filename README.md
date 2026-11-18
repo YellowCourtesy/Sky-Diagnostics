@@ -1,7 +1,11 @@
 # SkyrimDiagnostics
 
-Performance and crash diagnostics for Skyrim Special Edition (AE), with VR
-support planned. `SkyrimDiagnostics` is a working name.
+Performance and crash diagnostics for Skyrim. `SkyrimDiagnostics` is a
+working name.
+
+**Game versions:** built with CommonLibSSE-NG for SE, AE and VR in one DLL.
+Tested only on AE 1.7.x (with Proton). Other versions are not tested. "Tested
+in the game" in the table below means AE 1.7.x.
 
 The tool reports problems. It does not change game behavior and it does not
 fix problems.
@@ -20,7 +24,8 @@ fix problems.
 | Settings file, load time reports | Works, tested in the game (Proton) |
 | Session report (HTML) and comparison with the last 10 sessions | In test |
 | Mod Organizer 2 plugin (file to mod map) | Written, not tested, not used by the tool yet |
-| Engine limits, memory attribution by DLL, HTML report, VR | Not started |
+| Engine limits, memory attribution by DLL, HTML report | Not started |
+| SE 1.5.97, VR, other AE versions | Built, not tested |
 
 All crash, stall and unclean exit reports go to `SkyrimDiagnostics/Reports`
 in the SKSE log folder. Each one ends with a PROBABLE CAUSE section.

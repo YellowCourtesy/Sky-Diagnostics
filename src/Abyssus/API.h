@@ -14,6 +14,7 @@
 #include <cstdio>
 #include <deque>
 #include <string>
+#include <string_view>
 #include <vector>
 
 #if defined(_WINDOWS_)
@@ -91,6 +92,7 @@ namespace abyssus
 		using StatusFn = void (*)(const char* a_source, const char* a_text);
 		using WindowFn = void (*)(const char* a_source, const char* a_id, const AbyssusWindow* a_window);
 		using NoteFn = void (*)(const char* a_source, const char* a_id, const char* a_text, int a_level);
+		using HasFn = bool (*)(const char* a_feature);
 
 		struct Api
 		{
@@ -99,6 +101,8 @@ namespace abyssus
 			StatusFn  status{ nullptr };
 			WindowFn  window{ nullptr };
 			NoteFn    note{ nullptr };
+			HasFn     has{ nullptr };
+			int       dllVersion{ 0 };  // 0 = AbyssusLib is not loaded
 		};
 
 		inline const Api& Get()
@@ -108,6 +112,8 @@ namespace abyssus
 				if (auto module = ABYSSUS_GET_MODULE(L"AbyssusLib.dll")) {
 					a.version = reinterpret_cast<VersionFn>(ABYSSUS_GET_PROC(module, "AbyssusAPI_Version"));
 					const int version = a.version ? a.version() : 0;
+					a.dllVersion = version;
+					a.has = reinterpret_cast<HasFn>(ABYSSUS_GET_PROC(module, "AbyssusAPI_Has"));
 					if (version >= 1) {
 						a.notify = reinterpret_cast<NotifyFn>(ABYSSUS_GET_PROC(module, "AbyssusAPI_Notify"));
 						a.status = reinterpret_cast<StatusFn>(ABYSSUS_GET_PROC(module, "AbyssusAPI_SetStatus"));
@@ -121,6 +127,28 @@ namespace abyssus
 			}();
 			return api;
 		}
+	}
+
+	// The API version of the loaded AbyssusLib.dll, 0 if it is not loaded.
+	inline int DllApiVersion() { return detail::Get().dllVersion; }
+
+	// True if AbyssusLib.dll is loaded and its API version is not the
+	// version of this header. Only a signal for the log: use Has() to know
+	// what works.
+	inline bool VersionMismatch() { return DllApiVersion() != 0 && DllApiVersion() != kApiVersion; }
+
+	// True if the loaded AbyssusLib.dll has a feature, by name:
+	//   "notes", "status", "windows", "persistent-notes", "stack", "settings-file"
+	// A newer AbyssusLib can have more names. For an older DLL with no
+	// AbyssusAPI_Has, the answer comes from the functions that it has.
+	inline bool Has(const char* a_feature)
+	{
+		const auto& api = detail::Get();
+		if (api.has)
+			return api.has(a_feature);
+		const std::string_view name{ a_feature ? a_feature : "" };
+		return (name == "notes" && api.notify) || (name == "status" && api.status) || (name == "windows" && api.window) ||
+		       (name == "persistent-notes" && api.note);
 	}
 
 	// True if AbyssusLib.dll is loaded (notes and status lines). Call it at or

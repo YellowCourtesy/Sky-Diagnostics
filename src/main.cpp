@@ -782,6 +782,10 @@ namespace
 			SKSE::log::info("Game data is loaded.");
 			// All plugins are loaded now: AbyssusLib can be found.
 			SKSE::log::info("AbyssusLib: {}", abyssus::HasWindows() ? "found" : (abyssus::IsAvailable() ? "found, but too old for windows" : "not found"));
+			if (abyssus::VersionMismatch()) {
+				SKSE::log::info("AbyssusLib: API version {}, this tool was made with version {}. Features: windows {}, notes without time limit {}.",
+					abyssus::DllApiVersion(), abyssus::kApiVersion, abyssus::Has("windows") ? "yes" : "no", abyssus::Has("persistent-notes") ? "yes" : "no");
+			}
 			{
 				// One message box at the main menu with all that the player must know.
 				std::string text;
