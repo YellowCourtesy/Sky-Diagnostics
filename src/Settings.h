@@ -18,6 +18,7 @@ namespace skydiag
 		bool  memoryByDll{ true };        // count the heap memory of each mod DLL
 		bool  papyrusTime{ true };        // measure the time in each script function
 		bool  papyrusLatency{ true };     // script latency test each 5 seconds
+		bool  gpuPasses{ true };          // GPU time of each render pass
 		int   stallSeconds{ 30 };
 		int   loadingScreenSeconds{ 120 }; // a loading screen open longer, with no disk reads for 30 s: infinite loading screen report
 		bool  monitor{ true };           // start the monitor process (rundll32.exe with this DLL)

@@ -24,6 +24,7 @@
 #include "crash/Profiler.h"
 #include "crash/Session.h"
 #include "gfx/FrameStats.h"
+#include "gfx/GpuTimer.h"
 #include "gfx/Overlay.h"
 
 namespace
@@ -494,6 +495,7 @@ namespace
 	}
 
 	void UpdatePapyrusTable();
+	void UpdateGpuTable();
 
 	void WatchdogLoop()
 	{
@@ -692,6 +694,7 @@ namespace
 				if (++secondsSinceWrite >= 60) {
 					secondsSinceWrite = 0;
 					UpdatePapyrusTable();
+					UpdateGpuTable();
 					WriteReport();
 				}
 
@@ -895,6 +898,28 @@ namespace
 		skydiag::report::SetTable(table);
 	}
 
+	// The session table of the GPU time of each render pass.
+	void UpdateGpuTable()
+	{
+		static skydiag::gpu::SessionPass passes[25];
+		float                            frameAverage = 0, frameMax = 0;
+		const int                        count = skydiag::gpu::GetSession(passes, static_cast<int>(std::size(passes)), frameAverage, frameMax);
+		if (count == 0) {
+			return;
+		}
+		skydiag::report::Table table;
+		table.title = "GPU time by render pass";
+		table.note = fmt::format("GPU time of each frame: {:.1f} ms average, {:.1f} ms in the slowest second. A render pass is the work between two "
+		                         "changes of the render targets; it is named by its render target (size and format). Passes with the same render target are "
+		                         "added. The times are the average of the session and the largest one-second average (GpuPasses).",
+			frameAverage, frameMax);
+		table.headers = { "Render target", "Average each frame", "Largest" };
+		for (int i = 0; i < count; ++i) {
+			table.rows.push_back({ passes[i].name, fmt::format("{:.2f} ms", passes[i].averageMs), fmt::format("{:.2f} ms", passes[i].maxMs) });
+		}
+		skydiag::report::SetTable(table);
+	}
+
 	// The load time tables of the session report (see crash/LoadTimes.h).
 	void UpdateLoadTimeTables(bool a_log)
 	{
@@ -1068,6 +1093,7 @@ namespace
 				options.warningHoldSeconds = g_settings.warningHoldSeconds;
 				options.fpsBelow = g_settings.fpsBelow;
 				options.profiler = g_settings.profiler;
+				options.gpuPasses = g_settings.gpuPasses;
 				options.memoryByDll = g_settings.memoryByDll;
 				options.layoutText = g_layoutText.c_str();
 				if (skydiag::overlay::Install(window->swapChain, SKYDIAG_VERSION, options)) {

@@ -119,7 +119,7 @@ target_include_directories(skydiag_stats PRIVATE "${CMAKE_CURRENT_BINARY_DIR}/ge
 # CommonLibSSE, no Dear ImGui. AbyssusLib (a separate mod) draws the overlay
 # windows; src/Abyssus/API.h is its header, copied from AbyssusLib. Nothing
 # to link: the header finds AbyssusLib.dll at runtime.
-add_library(skydiag_gfx STATIC src/gfx/Overlay.cpp src/gfx/Overlay.h src/Abyssus/API.h)
+add_library(skydiag_gfx STATIC src/gfx/Overlay.cpp src/gfx/Overlay.h src/gfx/GpuTimer.cpp src/gfx/GpuTimer.h src/Abyssus/API.h)
 target_link_libraries(skydiag_gfx PUBLIC skydiag_stats skydiag_crash d3d11.lib dxgi.lib)
 
 if(MSVC)

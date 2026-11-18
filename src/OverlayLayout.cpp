@@ -29,6 +29,7 @@ namespace skydiag::layout
 			{ "scripts", Part::kScripts },
 			{ "functions", Part::kFunctions },
 			{ "livestacks", Part::kLiveStacks },
+			{ "gpupasses", Part::kGpuPasses },
 		};
 	}
 

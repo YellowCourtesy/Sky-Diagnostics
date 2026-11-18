@@ -31,6 +31,7 @@ namespace skydiag::layout
 		kScripts,
 		kFunctions,
 		kLiveStacks,
+		kGpuPasses,
 	};
 
 	// Reads a layout text. Lines that are not known are ignored. Each

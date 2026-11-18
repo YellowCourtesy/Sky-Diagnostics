@@ -12,6 +12,7 @@ namespace skydiag::overlay
 		float fpsBelow{ 57.0f };
 		bool  profiler{ true };
 		bool  memoryByDll{ true };
+		bool  gpuPasses{ true };   // GPU time of each render pass (gfx/GpuTimer.h)
 		// The [[Layout]] part of the configuration file, or nullptr.
 		const char* layoutText{ nullptr };
 	};

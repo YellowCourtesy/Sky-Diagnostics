@@ -23,6 +23,7 @@
 #include "../crash/MemTrack.h"
 #include "../crash/Profiler.h"
 #include "../crash/Session.h"
+#include "GpuTimer.h"
 #include "../MemText.h"
 #include "../OverlayLayout.h"
 #include "../Report.h"
@@ -204,6 +205,9 @@ namespace skydiag::overlay
 
 			QueryPerformanceFrequency(&g_frequency);
 			HookDrawCalls();
+			if (g_options.gpuPasses) {
+				session::Event(gpu::Start(g_device, g_context) ? "GPU time by render pass: on" : "GPU time by render pass: could not start");
+			}
 			return true;
 		}
 
@@ -804,6 +808,31 @@ namespace skydiag::overlay
 							}
 						}
 						break;
+					case layout::Part::kGpuPasses:
+						{
+							gpu::Snapshot passes;
+							gpu::GetSnapshot(passes);
+							if (!passes.valid) {
+								break;
+							}
+							Part(0, "GPU time each frame: ");
+							Part(High(passes.frameMs, 14.0, 25.0), "%.1f", passes.frameMs);
+							Part(0, " ms. Render passes (by render target):");
+							EndLine();
+							for (int i = 0; i < passes.passCount && i < 6; ++i) {
+								if (passes.passes[i].ms < 0.05f) {
+									break;
+								}
+								Part(0, "  ");
+								Part(High(passes.passes[i].ms, 4.0, 8.0), "%5.2f", passes.passes[i].ms);
+								Part(0, " ms  %s", passes.passes[i].name);
+								if (passes.passes[i].count > 1) {
+									Part(0, " (%d passes)", passes.passes[i].count);
+								}
+								EndLine();
+							}
+						}
+						break;
 					case layout::Part::kLiveStacks:
 						if (readScripts()) {
 							for (int i = 0; i < scripts.liveCount && i < 5; ++i) {
@@ -881,6 +910,7 @@ namespace skydiag::overlay
 			// The thread that shows frames can change. The profiler must
 			// follow it.
 			profiler::SetRenderThread(GetCurrentThreadId());
+			gpu::OnPresent();
 
 			LARGE_INTEGER start;
 			QueryPerformanceCounter(&start);
