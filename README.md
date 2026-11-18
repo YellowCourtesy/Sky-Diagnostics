@@ -179,7 +179,9 @@ State: not tested in MO2.
    [Address Library for SKSE Plugins](https://www.nexusmods.com/skyrimspecialedition/mods/32444)
    and AbyssusLib (for the overlay).
 2. Download the `SkyrimDiagnostics` artifact from the latest run of the
-   Build workflow (Actions tab).
+   Build workflow (Actions tab). The build starts only by hand ("Run
+   workflow"). It first checks that `src/Abyssus/API.h` is the file of its
+   AbyssusLib version.
 3. Install the archive as a mod in MO2.
 
 The log file is `SkyrimDiagnostics.log` in the SKSE log folder

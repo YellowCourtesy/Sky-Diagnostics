@@ -1,0 +1,32 @@
+# Copies the rules file (CLAUDE.md) from AbyssusLib, the source of the rules,
+# one time each day and when started by hand. It does not build.
+name: Sync rules from AbyssusLib
+
+on:
+  schedule:
+    - cron: "17 5 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out
+        uses: actions/checkout@v7
+
+      - name: Copy CLAUDE.md from AbyssusLib
+        run: |
+          curl -fsSL https://raw.githubusercontent.com/YellowCourtesy/AbyssusLib/main/CLAUDE.md -o /tmp/CLAUDE.md
+          if cmp -s /tmp/CLAUDE.md CLAUDE.md; then
+            echo "CLAUDE.md is the same as in AbyssusLib."
+            exit 0
+          fi
+          cp /tmp/CLAUDE.md CLAUDE.md
+          git config user.name "github-actions[bot]"
+          git config user.email "41898699+github-actions[bot]@users.noreply.github.com"
+          git add CLAUDE.md
+          git commit -m "Sync CLAUDE.md from AbyssusLib"
+          git push

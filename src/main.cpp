@@ -780,6 +780,8 @@ namespace
 			break;
 		case SKSE::MessagingInterface::kDataLoaded:
 			SKSE::log::info("Game data is loaded.");
+			// All plugins are loaded now: AbyssusLib can be found. Group "Diag", at the top.
+			abyssus::SetSourceInfo("SkyrimDiagnostics", "Diag", 100);
 			// All plugins are loaded now: AbyssusLib can be found.
 			SKSE::log::info("AbyssusLib: {}", abyssus::HasWindows() ? "found" : (abyssus::IsAvailable() ? "found, but too old for windows" : "not found"));
 			if (abyssus::VersionMismatch()) {

@@ -1,10 +1,8 @@
 name: Build
 
+# Only by hand (Actions tab, "Run workflow"): a build starts only when the
+# user asks for it. A push does not start a build.
 on:
-  push:
-    branches: ["**"]
-    tags: ["v*"]
-  pull_request:
   workflow_dispatch:
 
 jobs:
@@ -19,6 +17,23 @@ jobs:
         uses: actions/checkout@v7
         with:
           submodules: recursive
+
+      # src/Abyssus/API.h must be the same as the file of its AbyssusLib
+      # version (first line "// From AbyssusLib x.y.z", tag vx.y.z). Only a
+      # compare: AbyssusLib is not a part of this build.
+      - name: Check the AbyssusLib header
+        shell: pwsh
+        run: |
+          $line = Select-String -Path src/Abyssus/API.h -Pattern '^// From AbyssusLib (\S+)' | Select-Object -First 1
+          if (-not $line) { Write-Error "src/Abyssus/API.h has no line '// From AbyssusLib x.y.z'."; exit 1 }
+          $v = $line.Matches[0].Groups[1].Value
+          $url = "https://raw.githubusercontent.com/YellowCourtesy/AbyssusLib/v$v/include/Abyssus/API.h"
+          try { $remote = (Invoke-WebRequest -UseBasicParsing -Uri $url).Content } catch {
+            Write-Warning "AbyssusLib has no tag v$v yet: the header is not checked."; exit 0 }
+          $local = Get-Content -Raw src/Abyssus/API.h
+          if (($local -replace "`r`n", "`n") -ne ($remote -replace "`r`n", "`n")) {
+            Write-Error "src/Abyssus/API.h is not the same as AbyssusLib v$v. Copy include/Abyssus/API.h of that version again."; exit 1 }
+          Write-Host "src/Abyssus/API.h is the file of AbyssusLib v$v."
 
       - name: Set up vcpkg
         shell: pwsh
