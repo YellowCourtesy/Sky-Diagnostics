@@ -122,6 +122,17 @@ namespace skydiag::report
 		std::string              g_startText;  // "YYYY-MM-DD HH:MM:SS"
 		std::vector<Sample>      g_samples;
 		std::vector<EventLine>   g_events;
+		// Limits of the event list, so that the report stays a size that a
+		// browser can open. Menu events are separate: a mod that opens and
+		// closes menus often must not use the space of the other events.
+		// Loading screens (graphs) are not limited.
+		constexpr int            kMaxMenuEvents = 5000;
+		constexpr int            kMaxOtherEvents = 20000;
+		int                      g_menuEvents = 0;
+		int                      g_otherEvents = 0;
+		int                      g_droppedMenuEvents = 0;
+		int                      g_droppedOtherEvents = 0;
+		std::string              g_writeError;  // the cause of the last failed write, empty = the last write was correct
 		std::vector<Summary>     g_previous;
 		bool                     g_started = false;
 		bool                     g_compared = false;
@@ -436,6 +447,11 @@ namespace skydiag::report
 				Escape(g_info.game).c_str(), Escape(g_info.platform).c_str(), Escape(g_info.version).c_str(), Escape(g_startText).c_str(),
 				Clock(duration).c_str(),
 				g_group.empty() ? "no save was loaded" : Escape(g_group + ". The comparison uses only earlier sessions of this character.").c_str());
+			if (g_droppedMenuEvents > 0 || g_droppedOtherEvents > 0) {
+				html += Fmt("<p class=\"warn\">The event lists are not complete: %d menu events (limit %d) and %d other events (limit %d) were not recorded. "
+							"The graphs and the loading screens are complete.</p>\n",
+					g_droppedMenuEvents, kMaxMenuEvents, g_droppedOtherEvents, kMaxOtherEvents);
+			}
 			if (modmap::Loaded()) {
 				html += Fmt("<p>Mod Organizer 2 data: %d files of %d mods. The tables show the mod of a DLL or a script where it is known.</p>\n",
 					modmap::FileCount(), modmap::ModCount());
@@ -682,7 +698,8 @@ namespace skydiag::report
 			return html;
 		}
 
-		bool WriteFile(const std::filesystem::path& a_path, const std::string& a_content)
+		// Gives an empty text if the write is correct, else the cause.
+		std::string WriteFile(const std::filesystem::path& a_path, const std::string& a_content)
 		{
 			// Write a new file and then put it in the place of the old one,
 			// so that a crash in the write does not damage the old file.
@@ -691,16 +708,29 @@ namespace skydiag::report
 			{
 				std::ofstream out(temporary, std::ios::binary | std::ios::trunc);
 				if (!out) {
-					return false;
+					return "could not open " + temporary.string();
 				}
 				out << a_content;
 				if (!out) {
-					return false;
+					return "could not write " + temporary.string() + " (disk full?)";
 				}
 			}
 			std::error_code ec;
 			std::filesystem::rename(temporary, a_path, ec);
-			return !ec;
+			if (!ec) {
+				return {};
+			}
+			// The rename fails if a different program has the old file open
+			// with no permission to replace it (for example a viewer, a
+			// virus scanner or a sync tool). Then copy over the old file.
+			const std::string renameError = ec.message();
+			std::error_code   copyEc;
+			std::filesystem::copy_file(temporary, a_path, std::filesystem::copy_options::overwrite_existing, copyEc);
+			std::filesystem::remove(temporary, ec);
+			if (!copyEc) {
+				return {};
+			}
+			return "could not replace " + a_path.string() + " (" + renameError + "; copy: " + copyEc.message() + "). Is it open in a different program?";
 		}
 
 		void PutMetrics(std::string& a_out, const char* a_prefix, const Metrics& a_metrics)
@@ -928,6 +958,11 @@ namespace skydiag::report
 		g_samples.reserve(4 * 3600);
 		g_events.clear();
 		g_loads.clear();
+		g_menuEvents = 0;
+		g_otherEvents = 0;
+		g_droppedMenuEvents = 0;
+		g_droppedOtherEvents = 0;
+		g_writeError.clear();
 		g_compared = false;
 		g_started = true;
 	}
@@ -1043,17 +1078,26 @@ namespace skydiag::report
 	void AddEvent(const char* a_text)
 	{
 		const std::scoped_lock lock{ g_lock };
-		if (g_started && a_text && g_events.size() < 20000) {
-			g_events.push_back({ static_cast<int>(g_samples.size()), a_text, g_cell });
-
-			// "Loading screen: 2.7 s, ..." comes at the end of the load.
-			constexpr char prefix[] = "Loading screen: ";
-			if (std::string_view(a_text).rfind(prefix, 0) == 0) {
-				const float end = static_cast<float>(g_samples.size());
-				const float seconds = static_cast<float>(std::atof(a_text + sizeof(prefix) - 1));
-				g_loads.push_back({ std::max(end - std::max(seconds, 0.0f), 0.0f), end });
-			}
+		if (!g_started || !a_text) {
+			return;
 		}
+		// "Loading screen: 2.7 s, ..." comes at the end of the load. The
+		// graphs show all loading screens, also after the event limit.
+		constexpr char prefix[] = "Loading screen: ";
+		if (std::string_view(a_text).rfind(prefix, 0) == 0) {
+			const float end = static_cast<float>(g_samples.size());
+			const float seconds = static_cast<float>(std::atof(a_text + sizeof(prefix) - 1));
+			g_loads.push_back({ std::max(end - std::max(seconds, 0.0f), 0.0f), end });
+		}
+		const std::string_view text{ a_text };
+		const bool             menu = text.rfind("Menu open: ", 0) == 0 || text.rfind("Menu close: ", 0) == 0;
+		int&                   count = menu ? g_menuEvents : g_otherEvents;
+		if (count >= (menu ? kMaxMenuEvents : kMaxOtherEvents)) {
+			++(menu ? g_droppedMenuEvents : g_droppedOtherEvents);
+			return;
+		}
+		++count;
+		g_events.push_back({ static_cast<int>(g_samples.size()), a_text, g_cell });
 	}
 
 	void SetCell(const char* a_cell)
@@ -1068,9 +1112,19 @@ namespace skydiag::report
 		if (!g_started) {
 			return false;
 		}
-		const bool html = WriteFile(g_dir / (g_name + ".html"), BuildHtml());
-		const bool sum = WriteFile(g_dir / (g_name + ".sum"), SummaryText(CurrentSummary()));
-		return html && sum;
+		std::string error = WriteFile(g_dir / (g_name + ".html"), BuildHtml());
+		const std::string sumError = WriteFile(g_dir / (g_name + ".sum"), SummaryText(CurrentSummary()));
+		if (error.empty()) {
+			error = sumError;
+		}
+		g_writeError = error;
+		return error.empty();
+	}
+
+	std::string LastWriteError()
+	{
+		const std::scoped_lock lock{ g_lock };
+		return g_writeError;
 	}
 
 	bool CheckComparison(std::string& a_text, float& a_change)

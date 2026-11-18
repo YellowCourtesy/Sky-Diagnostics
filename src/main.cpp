@@ -1,5 +1,11 @@
 #include "Config.h"
 #include "Abyssus/API.h"
+
+#include "REX/W32/OLE32.h"
+#include "REX/W32/SHELL32.h"
+
+#include <spdlog/sinks/basic_file_sink.h>
+#include <spdlog/sinks/msvc_sink.h>
 #include "ModMap.h"
 #include "OverlayLayout.h"
 #include "crash/MemTrack.h"
@@ -61,6 +67,59 @@ namespace
 		return dir;
 	}
 
+	// The SKSE log folder: Documents/My Games/<game>/SKSE. The same rule as
+	// SKSE::log::log_directory() of CommonLibSSE-NG, with one change: that
+	// function looks for steam_api64.dll in the current folder of the
+	// process, which a launcher (Mod Organizer 2, a Proton tool) can set to
+	// a different folder. Then it gives the "GOG" folder. This function
+	// looks in the game folder.
+	std::optional<std::filesystem::path> SkseLogDir()
+	{
+		static const std::optional<std::filesystem::path> dir = []() -> std::optional<std::filesystem::path> {
+			wchar_t*   buffer = nullptr;
+			const auto result = REX::W32::SHGetKnownFolderPath(REX::W32::FOLDERID_Documents, REX::W32::KF_FLAG_DEFAULT, nullptr, &buffer);
+			std::unique_ptr<wchar_t[], decltype(&REX::W32::CoTaskMemFree)> known(buffer, REX::W32::CoTaskMemFree);
+			if (!known || result != 0) {
+				return std::nullopt;
+			}
+			std::error_code       ec;
+			std::filesystem::path path = known.get();
+			path /= "My Games";
+			if (REL::Module::IsVR()) {
+				path /= "Skyrim VR";
+			} else if (std::filesystem::exists(GameDir() / "steam_api64.dll", ec)) {
+				path /= std::filesystem::exists(GameDir() / "openvr_api.dll", ec) ? "Skyrim VR" : "Skyrim Special Edition";
+			} else {
+				path /= "Skyrim Special Edition GOG";
+			}
+			return path / "SKSE";
+		}();
+		return dir;
+	}
+
+	// The log file: SkyrimDiagnostics/SkyrimDiagnostics.log in the SKSE log
+	// folder. Made here, not by SKSE::Init, for the folder rule above.
+	void SetupLog()
+	{
+		static std::once_flag once;
+		std::call_once(once, [] {
+			const auto dir = SkseLogDir();
+			if (!dir) {
+				return;
+			}
+			const auto path = *dir / "SkyrimDiagnostics" / "SkyrimDiagnostics.log";
+			std::vector<spdlog::sink_ptr> sinks{
+				std::make_shared<spdlog::sinks::msvc_sink_mt>(),
+				std::make_shared<spdlog::sinks::basic_file_sink_mt>(path.string(), true),
+			};
+			auto logger = std::make_shared<spdlog::logger>("global", sinks.begin(), sinks.end());
+			logger->set_level(spdlog::level::info);
+			logger->flush_on(spdlog::level::info);
+			spdlog::set_default_logger(std::move(logger));
+			spdlog::set_pattern("[%T.%e] [%=5t] [%L] %v");
+		});
+	}
+
 	// The configuration file, as the game sees it.
 	const std::filesystem::path& ConfigFile()
 	{
@@ -86,7 +145,7 @@ namespace
 
 	void InstallCrashHandler(const char* a_platform)
 	{
-		const auto logDir = SKSE::log::log_directory();
+		const auto logDir = SkseLogDir();
 		if (!logDir) {
 			SKSE::log::error("Crash handler is off: the SKSE log folder was not found.");
 			return;
@@ -373,6 +432,24 @@ namespace
 	// This thread asks SKSE to run a small task on the game update thread.
 	// The task records the time. If no task runs for kStallLimit, this thread
 	// makes a stall report with the call stack of each thread.
+	// Writes the session report. A failed write is not silent: the log and
+	// the events tell it one time, and again when the writes work again.
+	void WriteReport()
+	{
+		static bool failed = false;
+		if (skydiag::report::Write()) {
+			if (failed) {
+				failed = false;
+				SKSE::log::info("Session report: the write works again.");
+				skydiag::session::Event("Session report: the write works again");
+			}
+		} else if (const std::string error = skydiag::report::LastWriteError(); !failed && !error.empty()) {
+			failed = true;
+			SKSE::log::error("Session report: the write failed: {}. The tool tries again each minute.", error);
+			skydiag::session::Event("Session report: the write failed: %s", error.c_str());
+		}
+	}
+
 	void WatchdogLoop()
 	{
 		const auto kStallLimit = std::chrono::seconds(g_settings.stallSeconds);
@@ -403,7 +480,7 @@ namespace
 					quitSeen = true;
 					skydiag::session::Event("Game exit requested");
 					skydiag::session::NoteCleanExit();
-					skydiag::report::Write();
+					WriteReport();
 				}
 			}
 
@@ -518,7 +595,7 @@ namespace
 
 				if (++secondsSinceWrite >= 60) {
 					secondsSinceWrite = 0;
-					skydiag::report::Write();
+					WriteReport();
 				}
 
 				// One time, 10 minutes into the session: compare with the
@@ -810,7 +887,7 @@ namespace
 			// Older versions of the tool made the log file in the SKSE
 			// log folder itself. The file is now in the SkyrimDiagnostics
 			// folder: remove the old one.
-			if (const auto logDir = SKSE::log::log_directory()) {
+			if (const auto logDir = SkseLogDir()) {
 				std::error_code ec;
 				std::filesystem::remove(*logDir / "SkyrimDiagnostics.log", ec);
 			}
@@ -828,10 +905,10 @@ namespace
 namespace
 {
 	// The log file is in the SkyrimDiagnostics folder, with the other files
-	// that the tool makes.
+	// that the tool makes. SetupLog makes it (see SkseLogDir).
 	const SKSE::InitInfo kInitInfo = [] {
 		SKSE::InitInfo info;
-		info.logName = "SkyrimDiagnostics/SkyrimDiagnostics";
+		info.log = false;
 		return info;
 	}();
 }
@@ -842,6 +919,7 @@ namespace
 SKSE_PLUGIN_PRELOAD(const SKSE::PreLoadInterface* a_skse)
 {
 	SKSE::Init(a_skse, kInitInfo);
+	SetupLog();
 	StartCore("preload");
 	return true;
 }
@@ -849,6 +927,7 @@ SKSE_PLUGIN_PRELOAD(const SKSE::PreLoadInterface* a_skse)
 SKSE_PLUGIN_LOAD(const SKSE::LoadInterface* a_skse)
 {
 	SKSE::Init(a_skse, kInitInfo);
+	SetupLog();
 	StartCore("load");
 
 	if (const auto messaging = SKSE::GetMessagingInterface(); !messaging || !messaging->RegisterListener(OnMessage)) {

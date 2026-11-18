@@ -36,6 +36,12 @@ compares its first 10 minutes with the average of the earlier sessions of
 the same character of 10 minutes or more, and shows a note if the frame rate
 values are 10 % better or worse.
 
+The report is written one time each minute and at the game exit. Its event
+lists keep 5,000 menu events and 20,000 other events; if a session has more,
+the report says how many are not listed. The graphs and loading screens are
+always complete. A write that fails (for example, a different program has the
+file open) is in the log and in the events, with the cause.
+
 The Suggestions section of the report comes from the `[[Suggestions]]` part
 of the configuration file.
 

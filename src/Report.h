@@ -111,6 +111,9 @@ namespace skydiag::report
 	// Writes the report and the summary. Returns false on a file error.
 	bool Write();
 
+	// The cause of the last failed Write(), or an empty text.
+	std::string LastWriteError();
+
 	// One time, when the session is 10 minutes old: compares its first 10
 	// minutes with the average of the earlier sessions that were 10 minutes
 	// or longer. Returns true if there is a result. a_change is the change
