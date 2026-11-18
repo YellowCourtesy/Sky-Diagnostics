@@ -53,7 +53,6 @@ namespace skydiag::overlay
 		bool                 g_ready = false;
 		bool                 g_failed = false;
 		// F11 in AbyssusLib shows or hides the windows (Diag in its configurations).
-		LARGE_INTEGER g_readyTime{};  // when the first frame was shown
 
 		LARGE_INTEGER g_frequency{};
 		LARGE_INTEGER g_lastPresentStart{};
@@ -151,6 +150,9 @@ namespace skydiag::overlay
 		std::atomic<bool>     g_animationsKnown{ false };
 		std::atomic<LONGLONG> g_inputTime{ 0 };  // counter value of the first input read since the last Present
 		std::atomic<bool>     g_pluginWarningTime{ true };
+		// True from the game start until the main menu closes, and again
+		// when it opens. Only the plugin warning is used in this time.
+		std::atomic<bool>     g_inMainMenu{ true };
 		bool                  g_settled = false;    // render thread only
 
 		LARGE_INTEGER g_lastVramCheck{};
@@ -334,9 +336,9 @@ namespace skydiag::overlay
 			in.pluginWarningTime = g_pluginWarningTime.load();
 			in.hasTrend = session::GetMemoryTrend(in.trendMbPerMinute, in.trendMinutes, in.trendRecentMbPerMinute);
 
-			// No frame, stutter or Papyrus warnings during a load, for 10 s
-			// after it, and for the first 10 s after the game window shows.
-			in.settled = session::SecondsSinceLoading() >= 10.0f && MicrosBetween(g_readyTime, a_now) >= 10'000'000;
+			// No frame, stutter or Papyrus warnings (and no value colors) in
+			// the main menu, during a load and for 10 s after it.
+			in.settled = !g_inMainMenu.load() && session::SecondsSinceLoading() >= 10.0f;
 			g_settled = in.settled;
 			if (g_stutterCause[0] != '\0' && MicrosBetween(g_stutterTime, a_now) < 30'000'000) {
 				strncpy_s(in.stutterCause, g_stutterCause, _TRUNCATE);
@@ -344,7 +346,25 @@ namespace skydiag::overlay
 			g_effectiveLimit = advisor::EffectiveLimit(in);
 
 			static advisor::Warning current[8];
-			const int               count = advisor::Evaluate(in, current, static_cast<int>(std::size(current)));
+			int                     count = advisor::Evaluate(in, current, static_cast<int>(std::size(current)));
+
+			// Main menu: the frame, memory and script values of the main menu
+			// and of the game start are not useful. Only the plugin count
+			// (near or over the limit) is. Warnings that show are removed.
+			if (g_inMainMenu.load()) {
+				int kept = 0;
+				for (int i = 0; i < count; ++i) {
+					if (std::strcmp(current[i].id, "plugins") == 0) {
+						current[kept++] = current[i];
+					}
+				}
+				count = kept;
+				for (auto& shown : g_shown) {
+					if (shown.used && std::strcmp(shown.warning.id, "plugins") != 0) {
+						shown.used = false;
+					}
+				}
+			}
 
 			for (auto& shown : g_shown) {
 				shown.active = false;
@@ -818,7 +838,6 @@ namespace skydiag::overlay
 				if (g_options.profiler) {
 					profiler::Start(GetCurrentThreadId());
 				}
-				QueryPerformanceCounter(&g_readyTime);
 				QueryPerformanceCounter(&g_lastPresentStart);
 			}
 
@@ -921,6 +940,11 @@ namespace skydiag::overlay
 		g_animations.store(a_state.animations);
 		g_animationsKnown.store(a_state.animationsKnown);
 		g_pluginWarningTime.store(a_state.pluginWarningTime);
+	}
+
+	void SetInMainMenu(bool a_inMainMenu)
+	{
+		g_inMainMenu.store(a_inMainMenu);
 	}
 
 	void NoteInputRead()

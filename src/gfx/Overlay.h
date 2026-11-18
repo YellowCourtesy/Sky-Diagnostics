@@ -42,6 +42,11 @@ namespace skydiag::overlay
 	};
 	void SetEngineState(const EngineState& a_state);
 
+	// True while the main menu is open (and from the game start until it
+	// closes the first time). In this time, only the plugin warning shows.
+	// Safe from all threads.
+	void SetInMainMenu(bool a_inMainMenu);
+
 	// Tells the overlay that the game reads the input of a frame now. The
 	// input latency is measured from this time. Safe from all threads.
 	void NoteInputRead();

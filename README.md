@@ -85,9 +85,12 @@ defaults, change that file and build again.
 | Object references | 80 % of the 1,048,576 reference handles in use (critical at 95 %) | The game can crash when all are in use |
 | Plugins | 90 % of 254 full plugins or of 4,096 light plugins: shows only until 1 minute after the first loading screen. Above the maximum: critical, shows always | The count is near or over the limit |
 
+In the main menu, and from the game start until the main menu closes, only
+the Plugins warning shows. All other warnings are off there, also in the
+session report.
+
 Frame, stutter, latency and Papyrus warnings are off during a loading
-screen, for 10 seconds after it, and for the first 10 seconds after the game
-window shows.
+screen and for 10 seconds after it.
 
 ## Mod Organizer 2 data
 

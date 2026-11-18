@@ -644,6 +644,9 @@ namespace
 			if (a_event) {
 				skydiag::session::Event("Menu %s: %s", a_event->opening ? "open" : "close", a_event->menuName.c_str());
 				const char* menu = a_event->menuName.c_str();
+				if (std::strcmp(menu, "Main Menu") == 0) {
+					skydiag::overlay::SetInMainMenu(a_event->opening);
+				}
 				if (std::strcmp(menu, "Main Menu") == 0 && a_event->opening && !_mainMenuSeen) {
 					_mainMenuSeen = true;
 					const auto sinceStart = std::chrono::duration<double>(Clock::now() - g_pluginStart).count();
