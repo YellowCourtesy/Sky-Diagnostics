@@ -69,6 +69,11 @@ namespace skydiag::gpu
 		int         g_sessionSeconds = 0;
 		double      g_sessionFrameSum = 0;
 		float       g_sessionFrameMax = 0;
+		double      g_captureSum[kMaxNames];
+		float       g_captureMax[kMaxNames];
+		int         g_captureSeconds = 0;
+		double      g_captureFrameSum = 0;
+		float       g_captureFrameMax = 0;
 
 		const char* FormatName(DXGI_FORMAT a_format)
 		{
@@ -306,6 +311,14 @@ namespace skydiag::gpu
 				g_sessionFrameSum += result.frameMs;
 				g_sessionFrameMax = (std::max)(g_sessionFrameMax, result.frameMs);
 				++g_sessionSeconds;
+				for (int i = 0; i < g_nameCount; ++i) {
+					const float ms = g_sumCount[i] ? static_cast<float>(g_sumMs[i] / g_frameCount) : 0.0f;
+					g_captureSum[i] += ms;
+					g_captureMax[i] = (std::max)(g_captureMax[i], ms);
+				}
+				g_captureFrameSum += result.frameMs;
+				g_captureFrameMax = (std::max)(g_captureFrameMax, result.frameMs);
+				++g_captureSeconds;
 			}
 			std::fill(std::begin(g_sumMs), std::end(g_sumMs), 0.0);
 			std::fill(std::begin(g_sumCount), std::end(g_sumCount), 0);
@@ -377,6 +390,53 @@ namespace skydiag::gpu
 	{
 		const std::scoped_lock lock{ g_lock };
 		a_out = g_snapshot;
+	}
+
+	void BeginCapture()
+	{
+		const std::scoped_lock lock{ g_lock };
+		std::fill(std::begin(g_captureSum), std::end(g_captureSum), 0.0);
+		std::fill(std::begin(g_captureMax), std::end(g_captureMax), 0.0f);
+		g_captureSeconds = 0;
+		g_captureFrameSum = 0;
+		g_captureFrameMax = 0;
+	}
+
+	namespace
+	{
+		int Fill(SessionPass* a_out, int a_max, const double* a_sum, const float* a_maxValues, int a_seconds)
+		{
+			int count = 0;
+			for (int i = 0; i < g_nameCount; ++i) {
+				const float average = a_seconds ? static_cast<float>(a_sum[i] / a_seconds) : 0.0f;
+				int         position = count;
+				while (position > 0 && a_out[position - 1].averageMs < average) {
+					--position;
+				}
+				if (position >= a_max) {
+					continue;
+				}
+				const int lastIndex = count < a_max ? count : a_max - 1;
+				for (int j = lastIndex; j > position; --j) {
+					a_out[j] = a_out[j - 1];
+				}
+				strncpy_s(a_out[position].name, g_names[i], _TRUNCATE);
+				a_out[position].averageMs = average;
+				a_out[position].maxMs = a_maxValues[i];
+				if (count < a_max) {
+					++count;
+				}
+			}
+			return count;
+		}
+	}
+
+	int GetCapture(SessionPass* a_out, int a_max, float& a_frameAverageMs, float& a_frameMaxMs)
+	{
+		const std::scoped_lock lock{ g_lock };
+		a_frameAverageMs = g_captureSeconds ? static_cast<float>(g_captureFrameSum / g_captureSeconds) : 0.0f;
+		a_frameMaxMs = g_captureFrameMax;
+		return Fill(a_out, a_max, g_captureSum, g_captureMax, g_captureSeconds);
 	}
 
 	int GetSession(SessionPass* a_out, int a_max, float& a_frameAverageMs, float& a_frameMaxMs)

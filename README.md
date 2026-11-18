@@ -33,6 +33,7 @@ fix problems.
 | Papyrus: live stacks, function totals, script time, latency test | Written, not tested |
 | GPU time of each frame and render pass | Written, not tested |
 | System, SKSE load problems, INI checks, Papyrus log, slow file reads, performance by place | Written, not tested |
+| Capture hotkey (20 s at one place) | Written, not tested |
 | Engine limits (references, plugins, animations), heap memory by mod DLL | Works, in the overlay and the session report |
 | SE 1.5.97, VR, other AE versions | Built, not tested |
 
@@ -179,6 +180,16 @@ session table **GPU time by render pass**.
 - **Performance by place**: average FPS, slow frames, draw calls, GPU time
   each frame, the share of the time in which the GPU limits the FPS, and
   memory, for each cell (session report table, slowest first).
+
+## Capture (one place)
+
+Press `CaptureKey` (F9) at a place with a problem, for example low FPS in a
+city. For 20 seconds the tool measures that place only, then writes
+`capture-<time>.log` to the Reports folder: the FPS, what limits it (the GPU
+or the processor), the GPU time by render pass, the threads, the mod DLLs, the
+draw calls and the slow file reads. Make one capture, change one setting (for
+example one Community Shaders feature), and make a second capture at the same
+place to compare.
 
 ## Planned
 

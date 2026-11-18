@@ -1,5 +1,6 @@
 #include <algorithm>
 #include <cmath>
+#include <ctime>
 #include <optional>
 #include <sstream>
 #include <tuple>
@@ -186,6 +187,7 @@ namespace
 		}
 
 		static const std::wstring dir = reportDir.wstring();
+		g_reportFolder = reportDir;
 		static const std::string  game = fmt::format("Skyrim {} {}", RuntimeName(), REL::Module::get().version().string("."sv));
 
 		skydiag::crash::Config config;
@@ -290,12 +292,21 @@ namespace
 	// The game sends its input events to this object one time in each
 	// frame, when it reads the input. The time of this call is the start
 	// of the input latency measurement.
+	std::atomic<bool> g_captureRequest{ false };  // the capture hotkey was pressed
+
 	class InputSink : public RE::BSTEventSink<RE::InputEvent*>
 	{
 	public:
-		RE::BSEventNotifyControl ProcessEvent(RE::InputEvent* const*, RE::BSTEventSource<RE::InputEvent*>*) override
+		RE::BSEventNotifyControl ProcessEvent(RE::InputEvent* const* a_events, RE::BSTEventSource<RE::InputEvent*>*) override
 		{
 			skydiag::overlay::NoteInputRead();
+			const int key = g_settings.captureKey;
+			for (auto* e = a_events ? *a_events : nullptr; e && key != 0; e = e->next) {
+				const auto* button = e->AsButtonEvent();
+				if (button && e->GetDevice() == RE::INPUT_DEVICE::kKeyboard && button->IsDown() && static_cast<int>(button->GetIDCode()) == key) {
+					g_captureRequest = true;
+				}
+			}
 			return RE::BSEventNotifyControl::kContinue;
 		}
 	};
@@ -501,6 +512,24 @@ namespace
 	}
 
 	void UpdatePapyrusTable();
+
+	// Capture: 20 seconds at one place (the capture hotkey). Called each second
+	// from the watchdog thread.
+	struct Capture
+	{
+		bool                     active{ false };
+		int                      seconds{ 0 };
+		std::int64_t             startCounter{ 0 };
+		std::string              place;
+		std::vector<float>       fps;
+		std::vector<float>       worst;
+		std::vector<float>       gpu;
+		std::vector<std::uint32_t> drawCalls;
+	};
+	Capture g_capture;
+	std::filesystem::path g_reportFolder;  // Reports in the SkyrimDiagnostics folder
+
+	void CaptureTick(const skydiag::report::Sample& a_sample);
 	void UpdateGpuTable();
 	void UpdateLoadTimeTables(bool a_log);
 	void ReadPapyrusLog();
@@ -659,6 +688,7 @@ namespace
 				history.referenceLimit = g_engineState.referenceLimit;
 				history.animations = g_engineState.animations;
 				skydiag::report::AddSample(history);
+				CaptureTick(history);
 
 				// Processor load for the tables of the session report: one
 				// period each 5 seconds, when the game runs and is not in a
@@ -1151,6 +1181,115 @@ namespace
 			table.rows.push_back({ entries[i].function, std::to_string(entries[i].errors), std::to_string(entries[i].warnings), entries[i].example });
 		}
 		skydiag::report::SetTable(table);
+	}
+
+	void CaptureTick(const skydiag::report::Sample& a_sample)
+	{
+		constexpr int kSeconds = 20;  // the profiler keeps about 20 s of samples
+		if (!g_capture.active) {
+			if (!g_captureRequest.exchange(false)) {
+				return;
+			}
+			g_capture = Capture{};
+			g_capture.active = true;
+			g_capture.startCounter = skydiag::profiler::Now();
+			g_capture.place = CurrentCellText();
+			skydiag::gpu::BeginCapture();
+			skydiag::overlay::PostNote("SkyrimDiagnostics: capture of 20 s started. Play normally at this place.", 5.0f);
+			skydiag::session::Event("Capture started");
+			return;
+		}
+		g_captureRequest = false;
+		if (!a_sample.loading && a_sample.active) {
+			g_capture.fps.push_back(a_sample.fps);
+			g_capture.worst.push_back(a_sample.worstFrameMs);
+			g_capture.gpu.push_back(a_sample.gpuMs);
+			g_capture.drawCalls.push_back(a_sample.drawCalls);
+		}
+		if (++g_capture.seconds < kSeconds) {
+			return;
+		}
+		g_capture.active = false;
+
+		const std::int64_t endCounter = skydiag::profiler::Now();
+		const auto average = [](const auto& a_values) {
+			double sum = 0;
+			for (const auto v : a_values) {
+				sum += v;
+			}
+			return a_values.empty() ? 0.0 : sum / static_cast<double>(a_values.size());
+		};
+		int gpuBound = 0;
+		for (std::size_t i = 0; i < g_capture.fps.size(); ++i) {
+			gpuBound += g_capture.gpu[i] * g_capture.fps[i] >= 900.0f ? 1 : 0;
+		}
+		std::string text = "SkyrimDiagnostics capture\n";
+		text += fmt::format("Tool version: {}\nPlace: {}\nLength: {} s, {} s in which the game ran normally\n", SKYDIAG_VERSION,
+			g_capture.place.empty() ? "not known"s : g_capture.place, kSeconds, g_capture.fps.size());
+		text += "\n== FRAMES ==\n";
+		text += fmt::format("Average FPS: {:.1f}. Slowest frame of each second, average: {:.0f} ms. Draw calls each frame, average: {:.0f}.\n", average(g_capture.fps),
+			average(g_capture.worst), average(g_capture.drawCalls));
+
+		static skydiag::gpu::SessionPass passes[20];
+		float                            gpuAverage = 0, gpuMax = 0;
+		const int                        passCount = skydiag::gpu::GetCapture(passes, static_cast<int>(std::size(passes)), gpuAverage, gpuMax);
+		text += "\n== WHAT LIMITS THE FPS ==\n";
+		if (gpuAverage > 0.0f && !g_capture.fps.empty()) {
+			const double share = 100.0 * gpuBound / static_cast<double>(g_capture.fps.size());
+			text += fmt::format("GPU time each frame: {:.1f} ms (largest second {:.1f} ms). The GPU was busy 90 % of the time or more in {:.0f} % of the seconds.\n",
+				gpuAverage, gpuMax, share);
+			text += share >= 50.0 ? "The GPU limits the FPS here: a lower resolution, fewer graphics effects or a faster GPU give more FPS. The render "
+			                        "passes below show where the GPU time goes.\n" :
+			                        "The GPU does not limit the FPS here most of the time: the processor (the game, a mod or the graphics driver), a "
+			                        "frame cap or VSync does. The threads and mod DLLs below show where the processor time goes.\n";
+		} else {
+			text += "The GPU time is not known (GpuPasses is off, or the measurement did not start).\n";
+		}
+		text += "\n== GPU TIME BY RENDER PASS ==\n(by render target: size and format; passes with the same target are added)\n";
+		for (int i = 0; i < passCount; ++i) {
+			if (passes[i].averageMs < 0.05f) {
+				break;
+			}
+			text += fmt::format("{:7.2f} ms  {}\n", passes[i].averageMs, passes[i].name);
+		}
+
+		text += "\n== THREADS ==\n";
+		static skydiag::profiler::ThreadInfo threads[16];
+		const int threadCount = skydiag::profiler::ListThreads(threads, static_cast<int>(std::size(threads)), static_cast<std::uint64_t>(kSeconds) * 1'000'000);
+		for (int i = 0; i < threadCount; ++i) {
+			static skydiag::profiler::Snapshot snapshot;
+			skydiag::profiler::GetRange(snapshot, g_capture.startCounter, endCounter, threads[i].id);
+			char describe[200] = "";
+			if (!skydiag::profiler::Describe(snapshot, describe, sizeof(describe))) {
+				continue;
+			}
+			text += fmt::format("Thread {}{}: processor use {:.0f} %, {}\n", threads[i].id,
+				threads[i].isRender ? " (shows the frames)" : (threads[i].isTask ? " (game update)" : ""), threads[i].cpuShare * 100.0f, describe);
+		}
+
+		text += "\n== MOD DLLS (processor, % of one core) ==\n";
+		static skydiag::profiler::ModTotal mods[12];
+		const int modCount = skydiag::profiler::GetModsRange(mods, static_cast<int>(std::size(mods)), g_capture.startCounter, endCounter);
+		for (int i = 0; i < modCount; ++i) {
+			text += fmt::format("{:5.1f} own, {:5.1f} total  {}\n", mods[i].ownCores * 100.0f, mods[i].totalCores * 100.0f, mods[i].name);
+		}
+
+		char reads[400] = "";
+		skydiag::loadtimes::SlowFileReads(g_capture.startCounter, endCounter, reads, sizeof(reads));
+		text += fmt::format("\n== SLOW FILE READS (8 ms or more, the last 5) ==\n{}\n", reads[0] ? reads : "None.");
+
+		const std::time_t now = std::time(nullptr);
+		std::tm           local{};
+		localtime_s(&local, &now);
+		const auto path = g_reportFolder / fmt::format("capture-{:04}-{:02}-{:02}-{:02}-{:02}-{:02}.log", local.tm_year + 1900, local.tm_mon + 1, local.tm_mday,
+		                                       local.tm_hour, local.tm_min, local.tm_sec);
+		std::ofstream file(path, std::ios::binary);
+		file << text;
+		const bool ok = static_cast<bool>(file);
+		SKSE::log::info("Capture at {}: {}", g_capture.place, ok ? path.string() : "the file could not be written"s);
+		skydiag::session::Event("Capture done: %s", ok ? path.filename().string().c_str() : "file not written");
+		skydiag::overlay::PostNote(ok ? "SkyrimDiagnostics: capture done (capture-*.log in the Reports folder)." : "SkyrimDiagnostics: the capture file could not be written.",
+			8.0f);
 	}
 
 	// The session table of the time in each script function.

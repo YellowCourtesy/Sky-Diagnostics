@@ -54,4 +54,9 @@ namespace skydiag::gpu
 		float maxMs;
 	};
 	int GetSession(SessionPass* a_out, int a_max, float& a_frameAverageMs, float& a_frameMaxMs);
+
+	// A capture window (the capture hotkey): the same values, only from
+	// BeginCapture to the GetCapture call.
+	void BeginCapture();
+	int  GetCapture(SessionPass* a_out, int a_max, float& a_frameAverageMs, float& a_frameMaxMs);
 }

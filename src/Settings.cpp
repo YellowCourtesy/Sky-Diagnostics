@@ -95,6 +95,8 @@ namespace skydiag
 				result.monitor = number != 0;
 			} else if (key == "openreport" && isNumber) {
 				result.openReport = number != 0;
+			} else if (key == "capturekey" && isNumber && number >= 0 && number <= 255) {
+				result.captureKey = static_cast<int>(number);
 			}
 		}
 		return result;

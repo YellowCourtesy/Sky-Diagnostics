@@ -23,6 +23,7 @@ namespace skydiag
 		int   loadingScreenSeconds{ 120 }; // a loading screen open longer, with no disk reads for 30 s: infinite loading screen report
 		bool  monitor{ true };           // start the monitor process (rundll32.exe with this DLL)
 		bool  openReport{ true };        // open the crash report after the game closed
+		int   captureKey{ 0x43 };        // capture hotkey (DirectInput key code; 0x43 = F9), 0 = off
 		bool  fileFound{ false };
 	};
 
