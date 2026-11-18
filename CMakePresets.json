@@ -1,0 +1,22 @@
+{
+	"version": 5,
+	"cmakeMinimumRequired": { "major": 3, "minor": 24, "patch": 0 },
+	"configurePresets": [
+		{
+			"name": "release",
+			"displayName": "Release with symbols (MSVC, Ninja)",
+			"generator": "Ninja",
+			"binaryDir": "${sourceDir}/build/release",
+			"installDir": "${sourceDir}/build/package",
+			"toolchainFile": "$env{VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake",
+			"cacheVariables": {
+				"CMAKE_BUILD_TYPE": "RelWithDebInfo",
+				"CMAKE_MSVC_RUNTIME_LIBRARY": "MultiThreadedDLL",
+				"VCPKG_TARGET_TRIPLET": "x64-windows-static-md"
+			}
+		}
+	],
+	"buildPresets": [
+		{ "name": "release", "configurePreset": "release" }
+	]
+}
