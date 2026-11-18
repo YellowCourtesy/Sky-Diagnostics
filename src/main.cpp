@@ -1,3 +1,4 @@
+#include <algorithm>
 #include "Config.h"
 #include "Abyssus/API.h"
 
@@ -17,6 +18,7 @@
 #include "Settings.h"
 #include "crash/CrashHandler.h"
 #include "crash/HookScan.h"
+#include "crash/LoadTimes.h"
 #include "crash/Monitor.h"
 #include "crash/Phostwood.h"
 #include "crash/Profiler.h"
@@ -783,6 +785,9 @@ namespace
 		const std::int64_t from = (std::max)(a_fromCounter, a_toCounter - 15 * ticks);
 
 		std::string text = fmt::format("{}: {:.1f} s", a_what, seconds);
+		if (seconds > 30.0) {
+			skydiag::report::NoteProblem("load-slow");
+		}
 		if (!toCell.empty()) {
 			text += a_fromCell.empty() || a_fromCell == toCell ? fmt::format(", to {}", toCell) : fmt::format(", from {} to {}", a_fromCell, toCell);
 		}
@@ -824,6 +829,9 @@ namespace
 					const auto sinceStart = std::chrono::duration<double>(Clock::now() - g_pluginStart).count();
 					skydiag::session::Event("Game start to main menu: %.1f s", sinceStart);
 					SKSE::log::info("Game start to main menu: {:.1f} s", sinceStart);
+					if (sinceStart > 120.0) {
+						skydiag::report::NoteProblem("load-slow");
+					}
 				}
 				if (std::strcmp(menu, "Loading Menu") == 0) {
 					if (a_event->opening) {
@@ -853,6 +861,99 @@ namespace
 		bool         _mainMenuSeen{ false };
 		bool         _mainMenuOpen{ false };
 	};
+
+	// The load time tables of the session report (see crash/LoadTimes.h).
+	void UpdateLoadTimeTables(bool a_log)
+	{
+		const auto rows = skydiag::loadtimes::Rows();
+		const auto ms = [](double a_ms) { return a_ms >= 1000.0 ? fmt::format("{:.1f} s", a_ms / 1000.0) : fmt::format("{:.0f} ms", a_ms); };
+		const auto modOf = [](const std::string& a_dll) {
+			const char* mod = skydiag::modmap::ModForDll(a_dll.c_str());
+			return mod ? std::string(mod) : ""s;
+		};
+		const auto isStartMessage = [](const std::string& a_what) {
+			return a_what == "message PostLoad" || a_what == "message PostPostLoad" || a_what == "message InputLoaded" || a_what == "message DataLoaded";
+		};
+
+		// Game start, SKSE plugins: the load function and the messages of the game start.
+		struct Start
+		{
+			std::string dll;
+			double      load{ 0 };
+			double      messages{ 0 };
+		};
+		std::vector<Start> starts;
+		for (const auto& row : rows) {
+			if (row.what != "SKSEPlugin_Load" && !isStartMessage(row.what)) {
+				continue;
+			}
+			auto it = std::find_if(starts.begin(), starts.end(), [&](const Start& a_start) { return a_start.dll == row.module; });
+			if (it == starts.end()) {
+				starts.push_back(Start{ row.module });
+				it = starts.end() - 1;
+			}
+			(row.what == "SKSEPlugin_Load" ? it->load : it->messages) += row.totalMs;
+		}
+		std::sort(starts.begin(), starts.end(), [](const Start& a_lhs, const Start& a_rhs) { return a_lhs.load + a_lhs.messages > a_rhs.load + a_rhs.messages; });
+		skydiag::report::Table table;
+		table.title = "Game start: SKSE plugins";
+		table.note = "The time of the load function of each SKSE plugin, and of its functions for the SKSE messages of the game start (PostLoad, "
+		             "PostPostLoad, InputLoaded, DataLoaded). On Skyrim SE and VR, only plugins that load after this tool are measured.";
+		table.headers = { "Mod DLL", "Mod", "Load function", "Game start messages", "Total" };
+		for (const auto& start : starts) {
+			if (table.rows.size() >= 40) {
+				break;
+			}
+			table.rows.push_back({ start.dll, modOf(start.dll), ms(start.load), ms(start.messages), ms(start.load + start.messages) });
+		}
+		skydiag::report::SetTable(table);
+		if (a_log) {
+			for (std::size_t i = 0; i < starts.size() && i < 10; ++i) {
+				SKSE::log::info("Game start: {} used {} (load function {}, messages {})", starts[i].dll, ms(starts[i].load + starts[i].messages),
+					ms(starts[i].load), ms(starts[i].messages));
+			}
+		}
+
+		// Game start, plugin files.
+		skydiag::report::Table files;
+		files.title = "Game start: plugin files";
+		files.note = "The approximate load time of each plugin file: from the time the game opened it to the time it opened the next one. The 40 "
+		             "slowest. Long load times at the game start can also come from many loose files: see the suggestions.";
+		files.headers = { "Plugin file", "Load time" };
+		double filesTotal = 0;
+		for (const auto& row : rows) {
+			if (row.what != "plugin file") {
+				continue;
+			}
+			filesTotal += row.totalMs;
+			if (files.rows.size() < 40) {
+				files.rows.push_back({ row.module, ms(row.totalMs) });
+			}
+		}
+		if (!files.rows.empty()) {
+			files.note += fmt::format(" All plugin files together: {}.", ms(filesTotal));
+		}
+		skydiag::report::SetTable(files);
+		if (a_log && filesTotal > 0) {
+			SKSE::log::info("Game start: plugin files {} in total", ms(filesTotal));
+		}
+
+		// Save loads: the functions of SKSE plugins.
+		skydiag::report::Table saves;
+		saves.title = "Save loads: SKSE plugins";
+		saves.note = "The time of the functions of SKSE plugins in save loads: the co-save load and revert functions, and the functions for the "
+		             "SKSE messages PreLoadGame and PostLoadGame. All save loads of this session together.";
+		saves.headers = { "Mod DLL", "Mod", "Function", "Total", "Largest", "Calls" };
+		for (const auto& row : rows) {
+			if (row.what != "co-save load" && row.what != "co-save revert" && row.what != "message PreLoadGame" && row.what != "message PostLoadGame") {
+				continue;
+			}
+			if (saves.rows.size() < 40) {
+				saves.rows.push_back({ row.module, modOf(row.module), row.what, ms(row.totalMs), ms(row.maxMs), std::to_string(row.count) });
+			}
+		}
+		skydiag::report::SetTable(saves);
+	}
 
 	void OnMessage(SKSE::MessagingInterface::Message* a_msg)
 	{
@@ -889,6 +990,8 @@ namespace
 			break;
 		case SKSE::MessagingInterface::kDataLoaded:
 			SKSE::log::info("Game data is loaded.");
+			skydiag::loadtimes::NoteDataLoaded();
+			UpdateLoadTimeTables(true);
 			SKSE::log::info("Game window close requests: {}.", skydiag::monitor::WatchWindowClose() ? "watched" : "not watched (window not found)");
 			SKSE::log::info("Hooks of DLLs in the game code: {}.", skydiag::crash::hooks::Scan());
 			// All plugins are loaded now: AbyssusLib can be found. Group "Diag", at the top.
@@ -964,6 +1067,7 @@ namespace
 			break;
 		case SKSE::MessagingInterface::kPostLoadGame:
 			skydiag::session::Event("Save load: end");
+			UpdateLoadTimeTables(false);
 			skydiag::crash::SetSave(fmt::format("{} (loaded)", g_saveName.empty() ? "name not known"s : g_saveName).c_str());
 			NoteCharacter();
 			break;
@@ -1049,6 +1153,10 @@ namespace
 			}
 
 			InstallCrashHandler(platform.c_str());
+			// Load times: as early as possible (on AE this is the preload step,
+			// before SKSE calls the load function of any plugin).
+			skydiag::loadtimes::HookPluginLoad();
+			skydiag::loadtimes::HookFileOpen();
 			HookModMemory();
 			if (!skydiag::modmap::Loaded()) {
 				SKSE::log::info("Mod Organizer 2 data: not found at the start (file {}). The tool looks again when the game data is loaded.",
@@ -1086,6 +1194,7 @@ SKSE_PLUGIN_LOAD(const SKSE::LoadInterface* a_skse)
 	SetupLog();
 	StartCore("load");
 
+	skydiag::loadtimes::HookInterfaces(SKSE::GetMessagingInterface(), SKSE::GetSerializationInterface());
 	if (const auto messaging = SKSE::GetMessagingInterface(); !messaging || !messaging->RegisterListener(OnMessage)) {
 		SKSE::log::error("Could not register the SKSE message listener.");
 		return false;

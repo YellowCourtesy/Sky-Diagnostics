@@ -102,6 +102,18 @@ namespace skydiag::report
 	// last value and the largest value.
 	void SetModMemory(const char* a_name, float a_inUseMb, float a_allocatedMb);
 
+	// A table for the report (load times, Papyrus statistics and the like).
+	// A table with the same title replaces the old one. The tables show in
+	// the order of their first call, before the suggestions.
+	struct Table
+	{
+		std::string                           title;
+		std::string                           note;     // a paragraph under the title, plain text
+		std::vector<std::string>              headers;
+		std::vector<std::vector<std::string>> rows;     // plain text cells
+	};
+	void SetTable(const Table& a_table);
+
 	void AddSample(const Sample& a_sample);  // one time each second
 	void AddEvent(const char* a_text);       // safe from all threads
 

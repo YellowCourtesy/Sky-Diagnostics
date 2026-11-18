@@ -1,0 +1,57 @@
+#pragma once
+
+// Load times of the game start and of save loads.
+//
+// - SKSE plugins: the time of the load function of each plugin
+//   (SKSEPlugin_Load). The tool changes the GetProcAddress import of SKSE, so
+//   that SKSE calls the load function through a timer. On Skyrim AE this
+//   covers all plugins (the tool starts in the preload step); on SE and VR
+//   only the plugins that load after this tool.
+// - SKSE messages: the time of the message function of each plugin for each
+//   message (PostLoad, DataLoaded, PreLoadGame, PostLoadGame and the
+//   others), and the time of the co-save load and revert functions. The tool
+//   changes the RegisterListener and SetLoadCallback functions of the SKSE
+//   interfaces; only functions that plugins give after that are timed.
+// - Plugin files (ESP, ESM, ESL): the time from the open of each file to the
+//   open of the next one, while the game loads its data. This is an
+//   approximate time of each file. The tool changes the CreateFile imports of
+//   the game executable.
+//
+// The functions that the game calls through these changes only measure time:
+// they call the original function at once and change nothing.
+//
+// Win32 only: no CommonLibSSE and no game data.
+
+#include <cstdint>
+#include <string>
+#include <vector>
+
+namespace skydiag::loadtimes
+{
+	// Call as early as possible (the first SKSE entry point).
+	void HookPluginLoad();  // SKSE's GetProcAddress
+	void HookFileOpen();    // CreateFileA and CreateFileW of the game executable
+
+	// a_messaging: the SKSE messaging interface. a_serialization: the SKSE
+	// serialization interface (or nullptr). Call in SKSEPlugin_Load.
+	void HookInterfaces(const void* a_messaging, const void* a_serialization);
+
+	// Marks the end of the data load (SKSE message DataLoaded): the last
+	// plugin file gets its time.
+	void NoteDataLoaded();
+
+	struct Row
+	{
+		std::string module;   // the DLL, or the plugin file
+		std::string what;     // "SKSEPlugin_Load", "message DataLoaded", "co-save load", "plugin file"
+		double      totalMs{ 0 };
+		double      maxMs{ 0 };
+		int         count{ 0 };
+	};
+
+	// All measured times, the largest first. Normal code only.
+	std::vector<Row> Rows();
+
+	// The SKSE message name of a message type.
+	const char* MessageName(std::uint32_t a_type);
+}

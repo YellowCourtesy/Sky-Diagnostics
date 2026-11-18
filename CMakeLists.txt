@@ -65,6 +65,8 @@ add_library(
 	src/crash/CrashHandler.h
 	src/crash/HookScan.cpp
 	src/crash/HookScan.h
+	src/crash/LoadTimes.cpp
+	src/crash/LoadTimes.h
 	src/crash/MemTrack.cpp
 	src/crash/MemTrack.h
 	src/crash/Monitor.cpp

@@ -116,6 +116,7 @@ namespace skydiag::report
 		}
 
 		std::mutex               g_lock;
+		std::vector<Table>       g_tables;  // SetTable
 		std::filesystem::path    g_dir;
 		Info                     g_info;
 		std::string              g_name;       // "session-YYYYMMDD-HHMMSS"
@@ -658,6 +659,31 @@ namespace skydiag::report
 				html += "</table>\n";
 			}
 
+			// Tables from SetTable.
+			for (const auto& table : g_tables) {
+				html += Fmt("<h2>%s</h2>\n", Escape(table.title).c_str());
+				if (!table.note.empty()) {
+					html += "<p>" + Escape(table.note) + "</p>\n";
+				}
+				if (table.rows.empty()) {
+					html += "<p>No data.</p>\n";
+					continue;
+				}
+				html += "<table><tr>";
+				for (const auto& header : table.headers) {
+					html += "<th>" + Escape(header) + "</th>";
+				}
+				html += "</tr>\n";
+				for (const auto& row : table.rows) {
+					html += "<tr>";
+					for (const auto& cell : row) {
+						html += "<td>" + Escape(cell) + "</td>";
+					}
+					html += "</tr>\n";
+				}
+				html += "</table>\n";
+			}
+
 			// Suggestions for the problem types that occurred.
 			html += "<h2>Suggestions</h2>\n";
 			if (g_problems.empty()) {
@@ -1059,6 +1085,18 @@ namespace skydiag::report
 		row.sumA = a_inUseMb;
 		row.sumB = a_allocatedMb;
 		row.peakA = std::max(row.peakA, a_inUseMb);
+	}
+
+	void SetTable(const Table& a_table)
+	{
+		const std::scoped_lock lock{ g_lock };
+		for (auto& table : g_tables) {
+			if (table.title == a_table.title) {
+				table = a_table;
+				return;
+			}
+		}
+		g_tables.push_back(a_table);
 	}
 
 	void EndLoadPeriod()
