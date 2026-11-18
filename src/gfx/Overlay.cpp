@@ -248,10 +248,6 @@ namespace skydiag::overlay
 			}
 		}
 
-			}
-			g_keyWasDown = down;
-		}
-
 		// A warning stays on the screen for this time after its condition
 		// ended, so that the player can read it.
 
