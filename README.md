@@ -80,8 +80,10 @@ its version there.
 - The overlay needs AbyssusLib 2 or later (a separate SKSE plugin). AbyssusLib
   draws all windows and notes of the tool. Without AbyssusLib, the overlay
   does not show, a message box tells this at the start, and the reports work.
-- The data window and the warnings are at the top left of the AbyssusLib
-  stack. `F11` (in AbyssusLib) cycles the configurations: Diag / GPS / Notif,
+- The data window is at the top of the AbyssusLib stack. The warnings box has
+  its own place (plugin name `SkyrimDiagnostics Warnings`, place 5000): under
+  SkyGPS and the other mods, directly above the notifications. Both are in
+  the group Diag. `F11` (in AbyssusLib) cycles the configurations: Diag / GPS / Notif,
   GPS / Notif, GPS, Notif, Off. "Diag" is this tool. The `View` and
   `ToggleKey` settings and the `F10` key are removed; an old settings file
   with them still loads.

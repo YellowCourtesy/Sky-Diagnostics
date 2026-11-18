@@ -37,6 +37,9 @@ namespace skydiag::overlay
 	namespace
 	{
 		constexpr const char* kSource = "SkyrimDiagnostics";
+		// The warnings box has its own place in the AbyssusLib stack (group Diag): after
+		// SkyGPS and the other plugins, directly above the notification queue.
+		constexpr const char* kWarningsSource = "SkyrimDiagnostics Warnings";
 		using PresentFn = HRESULT(STDMETHODCALLTYPE*)(IDXGISwapChain*, UINT, UINT);
 
 		constexpr int kPresentSlot = 8;  // position of Present in the IDXGISwapChain function table
@@ -470,12 +473,12 @@ namespace skydiag::overlay
 		void ClearWarningsWindow()
 		{
 			if (g_warningsShown) {
-				abyssus::ClearWindow(kSource, "warnings");
+				abyssus::ClearWindow(kWarningsSource, "warnings");
 				g_warningsShown = false;
 			}
 		}
 
-		// The warnings window, under the data window.
+		// The warnings window (its own place in the stack: see kWarningsSource).
 		void BuildWarnings()
 		{
 			if (g_warningCount == 0) {
@@ -503,8 +506,8 @@ namespace skydiag::overlay
 					g_warningsWindow.NewLine();
 				}
 			}
-			const AbyssusWindow window = g_warningsWindow.Make(0.7f, 560.0f, "data");
-			abyssus::SetWindow(kSource, "warnings", &window);
+			const AbyssusWindow window = g_warningsWindow.Make(0.7f, 560.0f);
+			abyssus::SetWindow(kWarningsSource, "warnings", &window);
 			g_warningsShown = true;
 		}
 
