@@ -12,6 +12,11 @@ case. This includes local builds, compile tests and runs of a build workflow.
 The build workflows start only by hand (`workflow_dispatch`); do not add a
 trigger that starts a build automatically.
 
+Exception: when a build that the user asked for fails, fix the cause and start
+the build again yourself, without asking. Do this only while the user has not
+added a request or interrupted the work since the failed build. If the user
+added a request or interrupted, ask before the next build.
+
 ## 2. AbyssusLib is its own mod
 
 AbyssusLib must not be included into any other mod. It is its own, independent
