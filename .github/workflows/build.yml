@@ -1,0 +1,91 @@
+name: Build
+
+# Only by hand (Actions tab, "Run workflow"): a build starts only when the
+# user asks for it. A push does not start a build.
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: windows-latest
+    env:
+      VCPKG_ROOT: ${{ github.workspace }}/vcpkg
+      VCPKG_BINARY_SOURCES: clear;files,${{ github.workspace }}/vcpkg-cache,readwrite
+
+    steps:
+      - name: Check out source and submodules
+        uses: actions/checkout@v7
+        with:
+          submodules: recursive
+
+      # src/Abyssus/API.h must be the same as the file of its AbyssusLib
+      # version (first line "// From AbyssusLib x.y.z", tag vx.y.z). Only a
+      # compare: AbyssusLib is not a part of this build.
+      - name: Check the AbyssusLib header
+        shell: pwsh
+        run: |
+          $line = Select-String -Path src/Abyssus/API.h -Pattern '^// From AbyssusLib (\S+)' | Select-Object -First 1
+          if (-not $line) { Write-Error "src/Abyssus/API.h has no line '// From AbyssusLib x.y.z'."; exit 1 }
+          $v = $line.Matches[0].Groups[1].Value
+          $url = "https://raw.githubusercontent.com/YellowCourtesy/AbyssusLib/v$v/include/Abyssus/API.h"
+          try { $remote = (Invoke-WebRequest -UseBasicParsing -Uri $url).Content } catch {
+            Write-Warning "AbyssusLib has no tag v$v yet: the header is not checked."; exit 0 }
+          $local = Get-Content -Raw src/Abyssus/API.h
+          if (($local -replace "`r`n", "`n") -ne ($remote -replace "`r`n", "`n")) {
+            Write-Error "src/Abyssus/API.h is not the same as AbyssusLib v$v. Copy include/Abyssus/API.h of that version again."; exit 1 }
+          Write-Host "src/Abyssus/API.h is the file of AbyssusLib v$v."
+
+      - name: Set up vcpkg
+        shell: pwsh
+        run: |
+          $b = (Get-Content vcpkg.json | ConvertFrom-Json).'builtin-baseline'
+          git clone https://github.com/microsoft/vcpkg.git "$env:VCPKG_ROOT"
+          git -C "$env:VCPKG_ROOT" checkout $b
+          & "$env:VCPKG_ROOT/bootstrap-vcpkg.bat" -disableMetrics
+          New-Item -ItemType Directory -Force -Path "${{ github.workspace }}/vcpkg-cache" | Out-Null
+
+      - name: Restore vcpkg binary cache
+        uses: actions/cache@v6
+        with:
+          path: ${{ github.workspace }}/vcpkg-cache
+          key: vcpkg-${{ runner.os }}-${{ hashFiles('vcpkg.json') }}
+          restore-keys: vcpkg-${{ runner.os }}-
+
+      - name: Set up CMake and Ninja
+        uses: lukka/get-cmake@latest
+
+      - name: Set up MSVC
+        uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: x64
+
+      - name: Configure
+        run: cmake --preset release
+
+      - name: Build
+        run: cmake --build --preset release
+
+      - name: Crash tests
+        shell: pwsh
+        run: ./tests/run_crash_tests.ps1 -BinDir build/release
+
+      # Two mod folders: the tool, and the fault test plugin. Their root is
+      # the game's Data folder (ready for MO2 and Vortex).
+      - name: Stage mod files
+        run: |
+          cmake --install build/release --component main --prefix package/SkyrimDiagnostics
+          cmake --install build/release --component faulttest --prefix package/SkyrimDiagnosticsFaultTest
+
+      - name: Upload mod
+        uses: actions/upload-artifact@v7
+        with:
+          name: SkyrimDiagnostics
+          path: package/SkyrimDiagnostics/
+          if-no-files-found: error
+
+      - name: Upload fault test plugin
+        uses: actions/upload-artifact@v7
+        with:
+          name: SkyrimDiagnosticsFaultTest
+          path: package/SkyrimDiagnosticsFaultTest/
+          if-no-files-found: error
