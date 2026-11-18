@@ -32,6 +32,7 @@ fix problems.
 | Load times: SKSE plugins, plugin files, save loads | Written, not tested |
 | Papyrus: live stacks, function totals, script time, latency test | Written, not tested |
 | GPU time of each frame and render pass | Written, not tested |
+| System, SKSE load problems, INI checks, Papyrus log, slow file reads, performance by place | Written, not tested |
 | Engine limits (references, plugins, animations), heap memory by mod DLL | Works, in the overlay and the session report |
 | SE 1.5.97, VR, other AE versions | Built, not tested |
 
@@ -153,6 +154,31 @@ timestamp queries. A render pass is the work between two changes of the
 render targets; it is named by its render target (size and format), because
 the names of the game's passes are not known. Overlay part `gpupasses` and
 session table **GPU time by render pass**.
+
+## System, SKSE, INI and Papyrus log checks
+
+- **System** (session report table, and the SYSTEM section of crash and
+  stall reports): processor, memory, GPU and driver version, operating
+  system; on Linux the Wine version and the host system, if d3d11.dll is DXVK,
+  and the Wine, Proton and DXVK settings (environment variables, without
+  folder paths).
+- **SKSE plugins that SKSE did not load**: the lines of the SKSE log
+  (`skse64.log`) about DLLs that did not load or that SKSE reported as not
+  compatible. A notification shows when there are any.
+- **INI checks**: the rules in `data/ini-rules.txt` (in the DLL), against the
+  values that the game uses. Each rule has the date it was added: a rule can
+  grow old.
+- **Papyrus log**: if Papyrus logging is on, the errors and warnings of
+  `Logs/Script/Papyrus.0.log` by script function, and the stack dumps.
+- **Slow file reads**: file reads and opens of the game of 8 ms or more, by
+  file (session report table), and in the event of each slow frame.
+- **Performance by place**: average FPS, slow frames, draw calls and memory
+  for each cell (session report table, slowest first).
+
+## Planned
+
+- Save health: the size of the save, the number of script instances, and the
+  script stacks that the save keeps (as ReSaver shows).
 
 ## Known crash signs (Phostwood's data)
 

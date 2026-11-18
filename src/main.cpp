@@ -1,4 +1,8 @@
 #include <algorithm>
+#include <cmath>
+#include <optional>
+#include <sstream>
+#include <tuple>
 #include "Config.h"
 #include "Abyssus/API.h"
 
@@ -23,6 +27,7 @@
 #include "crash/Phostwood.h"
 #include "crash/Profiler.h"
 #include "crash/Session.h"
+#include "crash/SystemInfo.h"
 #include "gfx/FrameStats.h"
 #include "gfx/GpuTimer.h"
 #include "gfx/Overlay.h"
@@ -497,6 +502,8 @@ namespace
 
 	void UpdatePapyrusTable();
 	void UpdateGpuTable();
+	void UpdateLoadTimeTables(bool a_log);
+	void ReadPapyrusLog();
 
 	void WatchdogLoop()
 	{
@@ -526,6 +533,7 @@ namespace
 
 		int secondsSinceHookScan = 0;
 		int secondsSinceLatency = 0;
+		int secondsSincePapyrusLog = 0;
 		for (;;) {
 			std::this_thread::sleep_for(1s);
 			skydiag::monitor::Beat();
@@ -627,6 +635,10 @@ namespace
 				history.papyrusLatencyMs = scripts.valid ? scripts.latencyMs : -1.0f;
 
 				// Script latency test, each 5 seconds, on the game main thread.
+				if (g_dataLoaded.load() && ++secondsSincePapyrusLog >= 10) {
+					secondsSincePapyrusLog = 0;
+					ReadPapyrusLog();
+				}
 				if (g_settings.papyrus && g_settings.papyrusLatency && g_dataLoaded.load() && !g_loading.load() && ++secondsSinceLatency >= 5) {
 					secondsSinceLatency = 0;
 					tasks->AddTask([] { skydiag::papyrus::MeasureLatency(); });
@@ -696,6 +708,7 @@ namespace
 					secondsSinceWrite = 0;
 					UpdatePapyrusTable();
 					UpdateGpuTable();
+					UpdateLoadTimeTables(false);
 					WriteReport();
 				}
 
@@ -878,6 +891,257 @@ namespace
 		bool         _mainMenuOpen{ false };
 	};
 
+	// The SYSTEM section of crash and stall reports: the system, and the SKSE
+	// plugins that SKSE did not load. No heap memory (after a crash).
+	char g_systemSection[16384];
+
+	void SystemSection(char* a_out, std::size_t a_cap)
+	{
+		strncpy_s(a_out, a_cap, g_systemSection, _TRUNCATE);
+	}
+
+	// At the game data load: the system data, and the SKSE log.
+	void CheckSystem()
+	{
+		const std::string& system = skydiag::sysinfo::Collect();
+		std::string        text = system;
+		for (std::size_t start = 0; start < system.size();) {
+			const auto end = system.find('\n', start);
+			SKSE::log::info("System: {}", system.substr(start, end == std::string::npos ? std::string::npos : end - start));
+			start = end == std::string::npos ? system.size() : end + 1;
+		}
+		std::vector<std::string> problems;
+		if (const auto logDir = SkseLogDir()) {
+			problems = skydiag::sysinfo::SksePluginProblems(logDir->wstring());
+		}
+		if (problems.empty()) {
+			text += "SKSE plugins that SKSE did not load: none in the SKSE log.\n";
+		} else {
+			text += fmt::format("SKSE plugins that SKSE did not load or reported as not compatible ({}), from the SKSE log:\n", problems.size());
+			for (const auto& line : problems) {
+				text += "  " + line + "\n";
+				SKSE::log::warn("SKSE log: {}", line);
+			}
+			skydiag::session::Event("SKSE did not load %zu plugin(s): see the SYSTEM section of the reports and the log", problems.size());
+			skydiag::report::NoteProblem("skse-plugins");
+			const auto note = fmt::format("SKSE did not load {} plugin DLL{}. See SkyrimDiagnostics.log (lines 'SKSE log:').", problems.size(),
+				problems.size() == 1 ? "" : "s");
+			skydiag::overlay::PostNote(note.c_str(), 30.0f);
+		}
+		strncpy_s(g_systemSection, text.c_str(), _TRUNCATE);
+		skydiag::crash::RegisterSection("SYSTEM", &SystemSection);
+
+		skydiag::report::Table table;
+		table.title = "System";
+		table.headers = { "Item" };
+		for (std::size_t start = 0; start < text.size();) {
+			const auto end = text.find('\n', start);
+			table.rows.push_back({ text.substr(start, end == std::string::npos ? std::string::npos : end - start) });
+			start = end == std::string::npos ? text.size() : end + 1;
+		}
+		skydiag::report::SetTable(table);
+	}
+
+#include "IniRules.inc"
+
+	// INI checks (data/ini-rules.txt): the values that the game uses now.
+	void CheckIni()
+	{
+		const std::string rules(reinterpret_cast<const char*>(kIniRules));
+		skydiag::report::Table table;
+		table.title = "INI checks";
+		table.note = "Settings of Skyrim.ini and SkyrimPrefs.ini (the values that the game uses, also from mods and defaults) that a rule of this "
+		             "tool names. Each rule has the date it was added to the tool: a rule can grow old.";
+		table.headers = { "Setting", "Value", "Level", "What it means", "Rule added" };
+		int warnings = 0;
+		std::istringstream stream(rules);
+		std::string        line;
+		const auto value = [](const std::string& a_file, const std::string& a_name) -> std::optional<double> {
+			RE::Setting* setting = nullptr;
+			if (a_file == "prefs") {
+				if (auto* prefs = RE::INIPrefSettingCollection::GetSingleton()) {
+					setting = prefs->GetSetting(a_name);
+				}
+			} else if (auto* ini = RE::INISettingCollection::GetSingleton()) {
+				setting = ini->GetSetting(a_name);
+			}
+			if (!setting) {
+				return std::nullopt;
+			}
+			switch (setting->GetType()) {
+			case RE::Setting::Type::kBool:
+				return setting->GetBool() ? 1.0 : 0.0;
+			case RE::Setting::Type::kFloat:
+				return static_cast<double>(setting->GetFloat());
+			case RE::Setting::Type::kSignedInteger:
+				return static_cast<double>(setting->GetInteger());
+			case RE::Setting::Type::kUnsignedInteger:
+				return static_cast<double>(setting->GetUnsignedInteger());
+			default:
+				return std::nullopt;
+			}
+		};
+		while (std::getline(stream, line)) {
+			if (!line.empty() && line.back() == '\r') {
+				line.pop_back();
+			}
+			if (line.empty() || line[0] == '#') {
+				continue;
+			}
+			std::vector<std::string> parts;
+			for (std::size_t start = 0;;) {
+				const auto tab = line.find('\t', start);
+				parts.push_back(line.substr(start, tab == std::string::npos ? std::string::npos : tab - start));
+				if (tab == std::string::npos) {
+					break;
+				}
+				start = tab + 1;
+			}
+			if (parts.size() < 6) {
+				continue;
+			}
+			const auto& [date, file, name, test, level, text] = std::tie(parts[0], parts[1], parts[2], parts[3], parts[4], parts[5]);
+			const auto current = value(file, name);
+			if (!current) {
+				continue;
+			}
+			bool hit = false;
+			if (test == "gridbuffer") {
+				const auto grids = value("ini", "uGridsToLoad:General");
+				hit = grids && *current < (*grids + 1.0) * (*grids + 1.0);
+			} else if (test.size() > 3) {
+				const std::string op = test.substr(0, 2);
+				const double      limit = std::atof(test.c_str() + 3);
+				hit = (op == "ne" && std::abs(*current - limit) > 1e-4) || (op == "eq" && std::abs(*current - limit) <= 1e-4) || (op == "lt" && *current < limit) ||
+				      (op == "gt" && *current > limit);
+			}
+			if (!hit) {
+				continue;
+			}
+			warnings += level == "warning" ? 1 : 0;
+			table.rows.push_back({ name, fmt::format("{:g}", *current), level, text, date });
+			SKSE::log::info("INI check ({}, rule of {}): {} = {:g}. {}", level, date, name, *current, text);
+		}
+		if (table.rows.empty()) {
+			table.note += " No rule matches.";
+		}
+		if (warnings > 0) {
+			skydiag::session::Event("INI checks: %d warning(s), see the table 'INI checks'", warnings);
+			skydiag::report::NoteProblem("ini");
+		}
+		skydiag::report::SetTable(table);
+	}
+
+	// The Papyrus log (Logs/Script/Papyrus.0.log, only if Papyrus logging is on):
+	// errors and warnings by script function, and stack dumps. Read each 10 s,
+	// only the new part.
+	struct PapyrusLogEntry
+	{
+		std::string function;
+		int         errors{ 0 };
+		int         warnings{ 0 };
+		std::string example;
+	};
+
+	void ReadPapyrusLog()
+	{
+		static std::uintmax_t                offset = 0;
+		static std::vector<PapyrusLogEntry> entries;
+		static int                           stackDumps = 0;
+		static bool                          started = false;
+		const auto logDir = SkseLogDir();
+		if (!logDir) {
+			return;
+		}
+		const auto     path = logDir->parent_path() / "Logs" / "Script" / "Papyrus.0.log";
+		std::error_code ec;
+		const auto     size = std::filesystem::file_size(path, ec);
+		if (ec) {
+			return;
+		}
+		if (!started || size < offset) {
+			// The game starts a new log at each start: read from the start.
+			started = true;
+			offset = 0;
+		}
+		std::ifstream file(path, std::ios::binary);
+		if (!file || size <= offset) {
+			return;
+		}
+		file.seekg(static_cast<std::streamoff>(offset));
+		std::string text(static_cast<std::size_t>(std::min<std::uintmax_t>(size - offset, 8 * 1024 * 1024)), '\0');
+		file.read(text.data(), static_cast<std::streamsize>(text.size()));
+		text.resize(static_cast<std::size_t>(file.gcount()));
+		// Only whole lines: the rest is read next time.
+		const auto lastNewline = text.rfind('\n');
+		if (lastNewline == std::string::npos) {
+			return;
+		}
+		text.resize(lastNewline + 1);
+		offset += text.size();
+
+		std::istringstream stream(text);
+		std::string        line;
+		int                pending = 0;  // 1 error, 2 warning: waits for its first stack line
+		std::string        message;
+		const auto add = [&](const std::string& a_function) {
+			auto it = std::find_if(entries.begin(), entries.end(), [&](const PapyrusLogEntry& a_entry) { return a_entry.function == a_function; });
+			if (it == entries.end()) {
+				entries.push_back({ a_function });
+				it = entries.end() - 1;
+			}
+			(pending == 1 ? it->errors : it->warnings) += 1;
+			if (it->example.empty()) {
+				it->example = message.substr(0, 160);
+			}
+		};
+		while (std::getline(stream, line)) {
+			if (line.find("Suspended stack count is over our warning threshold") != std::string::npos ||
+				line.find("Dumping stacks") != std::string::npos) {
+				++stackDumps;
+				skydiag::session::Event("Papyrus log: stack dump (the script engine has too many waiting script stacks)");
+				skydiag::report::NoteProblem("papyrus-stacks");
+				continue;
+			}
+			const auto error = line.find("] error: ");
+			const auto warning = line.find("] warning: ");
+			if (error != std::string::npos || warning != std::string::npos) {
+				if (pending) {
+					add("(no script function in the log)");
+				}
+				pending = error != std::string::npos ? 1 : 2;
+				message = line.substr((error != std::string::npos ? error : warning) + 2);
+				continue;
+			}
+			if (pending && line.find("()") != std::string::npos) {
+				// A stack line: "[...].Script.Function() - ..." or "<unknown self>.Script.Function() - ..."
+				const auto call = line.find("()");
+				auto       start = line.find_last_of("]> \t", call);
+				start = start == std::string::npos ? 0 : start + 1;
+				std::string function = line.substr(start, call - start);
+				if (!function.empty() && function[0] == '.') {
+					function.erase(0, 1);
+				}
+				add(function.empty() ? "(not known)" : function);
+				pending = 0;
+			}
+		}
+
+		std::sort(entries.begin(), entries.end(), [](const PapyrusLogEntry& a_lhs, const PapyrusLogEntry& a_rhs) {
+			return a_lhs.errors + a_lhs.warnings > a_rhs.errors + a_rhs.warnings;
+		});
+		skydiag::report::Table table;
+		table.title = "Papyrus log";
+		table.note = fmt::format("Errors and warnings of the script engine in this session, by the script function at the top of the stack "
+		                         "(from {}). Stack dumps: {}. Many errors of one function usually come from one mod: search the script name in your mods.",
+			"Logs/Script/Papyrus.0.log", stackDumps);
+		table.headers = { "Script function", "Errors", "Warnings", "Example" };
+		for (std::size_t i = 0; i < entries.size() && i < 30; ++i) {
+			table.rows.push_back({ entries[i].function, std::to_string(entries[i].errors), std::to_string(entries[i].warnings), entries[i].example });
+		}
+		skydiag::report::SetTable(table);
+	}
+
 	// The session table of the time in each script function.
 	void UpdatePapyrusTable()
 	{
@@ -1012,6 +1276,19 @@ namespace
 			}
 		}
 		skydiag::report::SetTable(saves);
+
+		// Slow file reads and opens of the whole session (8 ms or more each).
+		skydiag::report::Table reads;
+		reads.title = "Slow file reads";
+		reads.note = "File reads and opens of the game that took 8 ms or more, by file: the files that can cause stutter. A BSA archive "
+		             "holds many files; a loose file is one mesh, texture or script.";
+		reads.headers = { "File", "Read or open", "Total", "Largest", "Count" };
+		for (const auto& row : rows) {
+			if ((row.what == "slow file read" || row.what == "slow file open") && reads.rows.size() < 40) {
+				reads.rows.push_back({ row.module, row.what == "slow file open" ? "open" : "read", ms(row.totalMs), ms(row.maxMs), std::to_string(row.count) });
+			}
+		}
+		skydiag::report::SetTable(reads);
 	}
 
 	void OnMessage(SKSE::MessagingInterface::Message* a_msg)
@@ -1051,6 +1328,8 @@ namespace
 			SKSE::log::info("Game data is loaded.");
 			skydiag::loadtimes::NoteDataLoaded();
 			UpdateLoadTimeTables(true);
+			CheckSystem();
+			CheckIni();
 			SKSE::log::info("Game window close requests: {}.", skydiag::monitor::WatchWindowClose() ? "watched" : "not watched (window not found)");
 			SKSE::log::info("Hooks of DLLs in the game code: {}.", skydiag::crash::hooks::Scan());
 			// All plugins are loaded now: AbyssusLib can be found. Group "Diag", at the top.

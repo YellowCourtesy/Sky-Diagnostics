@@ -22,6 +22,7 @@
 //
 // Win32 only: no CommonLibSSE and no game data.
 
+#include <cstddef>
 #include <cstdint>
 #include <string>
 #include <vector>
@@ -48,6 +49,13 @@ namespace skydiag::loadtimes
 		double      maxMs{ 0 };
 		int         count{ 0 };
 	};
+
+	// File reads and opens of the game that took 8 ms or more (ReadFile and
+	// CreateFile imports of the game executable), with the file name. Writes
+	// those that ended between the counter values a_from and a_to
+	// (QueryPerformanceCounter), at most 5, as "name 35 ms, name 12 ms".
+	// Returns the count.
+	int SlowFileReads(long long a_from, long long a_to, char* a_out, std::size_t a_cap);
 
 	// All measured times, the largest first. Normal code only.
 	std::vector<Row> Rows();

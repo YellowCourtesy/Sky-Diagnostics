@@ -308,25 +308,106 @@ namespace skydiag::loadtimes
 			}
 		}
 
+		// ---------------------------------------------- slow file reads
+
+		// The file name of each handle that the game opened (a small table by
+		// handle value; an old entry can be replaced, then the name is "?").
+		struct HandleName
+		{
+			HANDLE handle;
+			char   name[96];
+		};
+		HandleName g_handleNames[4096];
+
+		const char* NameOf(HANDLE a_handle)
+		{
+			const auto& entry = g_handleNames[(reinterpret_cast<std::uintptr_t>(a_handle) >> 2) % std::size(g_handleNames)];
+			return entry.handle == a_handle ? entry.name : "?";
+		}
+
+		void NoteHandle(HANDLE a_handle, const char* a_path)
+		{
+			if (a_handle == INVALID_HANDLE_VALUE || !a_handle) {
+				return;
+			}
+			const char* name = std::strrchr(a_path, '\\');
+			const char* slash = std::strrchr(a_path, '/');
+			name = (std::max)(name, slash);
+			name = name ? name + 1 : a_path;
+			auto& entry = g_handleNames[(reinterpret_cast<std::uintptr_t>(a_handle) >> 2) % std::size(g_handleNames)];
+			entry.handle = a_handle;
+			strncpy_s(entry.name, name, _TRUNCATE);
+		}
+
+		struct SlowRead
+		{
+			LONGLONG end;
+			float    ms;
+			char     name[96];
+			bool     open;
+		};
+		constexpr int kSlowRing = 256;
+		SlowRead      g_slow[kSlowRing];
+		volatile LONG g_slowCount = 0;
+
+		void NoteSlow(const char* a_name, LONGLONG a_start, LONGLONG a_end, bool a_open)
+		{
+			const double ms = Ms(a_end - a_start);
+			if (ms < 8.0) {
+				return;
+			}
+			const LONG index = InterlockedIncrement(&g_slowCount) - 1;
+			SlowRead&  entry = g_slow[index % kSlowRing];
+			entry.end = a_end;
+			entry.ms = static_cast<float>(ms);
+			entry.open = a_open;
+			strncpy_s(entry.name, a_name, _TRUNCATE);
+			Record(a_name, a_open ? "slow file open" : "slow file read", ms);
+		}
+
+		using ReadFile_t = BOOL(WINAPI*)(HANDLE, LPVOID, DWORD, LPDWORD, LPOVERLAPPED);
+		ReadFile_t g_readFile = nullptr;
+
+		BOOL WINAPI HookReadFile(HANDLE a_file, LPVOID a_buffer, DWORD a_size, LPDWORD a_read, LPOVERLAPPED a_overlapped)
+		{
+			if (a_overlapped) {
+				return g_readFile(a_file, a_buffer, a_size, a_read, a_overlapped);  // asynchronous: the time is not the read
+			}
+			const LONGLONG start = Now();
+			const BOOL     result = g_readFile(a_file, a_buffer, a_size, a_read, a_overlapped);
+			NoteSlow(NameOf(a_file), start, Now(), false);
+			return result;
+		}
+
 		HANDLE WINAPI HookCreateFileA(LPCSTR a_path, DWORD a_access, DWORD a_share, LPSECURITY_ATTRIBUTES a_security, DWORD a_disposition, DWORD a_flags,
 			HANDLE a_template)
 		{
 			if (a_path) {
 				NoteOpen(a_path);
 			}
-			return g_createFileA(a_path, a_access, a_share, a_security, a_disposition, a_flags, a_template);
+			const LONGLONG start = Now();
+			const HANDLE   result = g_createFileA(a_path, a_access, a_share, a_security, a_disposition, a_flags, a_template);
+			if (a_path) {
+				NoteHandle(result, a_path);
+				NoteSlow(NameOf(result), start, Now(), true);
+			}
+			return result;
 		}
 
 		HANDLE WINAPI HookCreateFileW(LPCWSTR a_path, DWORD a_access, DWORD a_share, LPSECURITY_ATTRIBUTES a_security, DWORD a_disposition, DWORD a_flags,
 			HANDLE a_template)
 		{
-			if (a_path) {
-				char path[600];
-				if (WideCharToMultiByte(CP_UTF8, 0, a_path, -1, path, sizeof(path), nullptr, nullptr) != 0) {
-					NoteOpen(path);
-				}
+			char path[600] = "";
+			if (a_path && WideCharToMultiByte(CP_UTF8, 0, a_path, -1, path, sizeof(path), nullptr, nullptr) != 0) {
+				NoteOpen(path);
 			}
-			return g_createFileW(a_path, a_access, a_share, a_security, a_disposition, a_flags, a_template);
+			const LONGLONG start = Now();
+			const HANDLE   result = g_createFileW(a_path, a_access, a_share, a_security, a_disposition, a_flags, a_template);
+			if (path[0]) {
+				NoteHandle(result, path);
+				NoteSlow(NameOf(result), start, Now(), true);
+			}
+			return result;
 		}
 	}
 
@@ -375,6 +456,9 @@ namespace skydiag::loadtimes
 		if (auto* w = PatchImport(game, "KERNEL32.dll", "CreateFileW", reinterpret_cast<void*>(&HookCreateFileW))) {
 			g_createFileW = reinterpret_cast<CreateFileW_t>(w);
 		}
+		if (auto* r = PatchImport(game, "KERNEL32.dll", "ReadFile", reinterpret_cast<void*>(&HookReadFile))) {
+			g_readFile = reinterpret_cast<ReadFile_t>(r);
+		}
 	}
 
 	void HookInterfaces(const void* a_messaging, const void* a_serialization)
@@ -408,6 +492,28 @@ namespace skydiag::loadtimes
 			const LONGLONG end = i + 1 < files.size() ? files[i + 1].time : g_dataLoadedTime;
 			Record(files[i].name, "plugin file", Ms(end - files[i].time));
 		}
+	}
+
+	int SlowFileReads(long long a_from, long long a_to, char* a_out, std::size_t a_cap)
+	{
+		a_out[0] = '\0';
+		int        count = 0;
+		std::size_t used = 0;
+		const LONG total = g_slowCount;
+		for (LONG i = total - 1; i >= 0 && i >= total - kSlowRing && count < 5; --i) {
+			const SlowRead& entry = g_slow[i % kSlowRing];
+			if (entry.end < a_from || entry.end > a_to) {
+				continue;
+			}
+			const int n = _snprintf_s(a_out + used, a_cap - used, _TRUNCATE, "%s%s %.0f ms%s", count ? ", " : "", entry.name, static_cast<double>(entry.ms),
+				entry.open ? " (open)" : "");
+			if (n < 0) {
+				break;
+			}
+			used += static_cast<std::size_t>(n);
+			++count;
+		}
+		return count;
 	}
 
 	std::vector<Row> Rows()

@@ -20,6 +20,7 @@
 #include <iterator>
 
 #include "../Abyssus/API.h"
+#include "../crash/LoadTimes.h"
 #include "../crash/MemTrack.h"
 #include "../crash/Profiler.h"
 #include "../crash/Session.h"
@@ -975,6 +976,10 @@ namespace skydiag::overlay
 				g_lastLongFrameEvent = start;
 				char           what[120];
 				const LONGLONG from = start.QuadPart - static_cast<LONGLONG>(frameUs) * g_frequency.QuadPart / 1000000;
+				char files[400];
+				if (loadtimes::SlowFileReads(from, start.QuadPart, files, sizeof(files)) > 0) {
+					session::Event("Slow frame: %llu ms, slow file reads in it: %s", static_cast<unsigned long long>(frameUs / 1000), files);
+				}
 				if (profiler::DescribeRange(what, sizeof(what), from, start.QuadPart)) {
 					session::Event("Slow frame: %llu ms (%s)", static_cast<unsigned long long>(frameUs / 1000), what);
 					if (session::SecondsSinceLoading() >= 10.0f) {

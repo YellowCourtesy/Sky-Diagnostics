@@ -117,6 +117,19 @@ namespace skydiag::report
 
 		std::mutex               g_lock;
 		std::vector<Table>       g_tables;  // SetTable
+
+		// Performance by place (the cell of the player), from the seconds that count.
+		struct Place
+		{
+			std::string   name;
+			int           seconds{ 0 };
+			double        sumFps{ 0 };
+			int           slow{ 0 };
+			float         worstMs{ 0 };
+			std::uint32_t maxMb{ 0 };
+			double        sumDrawCalls{ 0 };
+		};
+		std::vector<Place> g_places;
 		std::filesystem::path    g_dir;
 		Info                     g_info;
 		std::string              g_name;       // "session-YYYYMMDD-HHMMSS"
@@ -662,6 +675,32 @@ namespace skydiag::report
 				html += "</table>\n";
 			}
 
+			// Performance by place.
+			if (!g_places.empty()) {
+				auto places = g_places;
+				std::sort(places.begin(), places.end(), [](const Place& a_lhs, const Place& a_rhs) {
+					return a_lhs.sumFps / std::max(a_lhs.seconds, 1) < a_rhs.sumFps / std::max(a_rhs.seconds, 1);
+				});
+				html += "<h2>Performance by place</h2>\n<p>The cells where the player was, the slowest first (average FPS). Only seconds in which the game "
+				        "ran normally count, and only places with 20 seconds or more.</p>\n"
+				        "<table><tr><th>Place</th><th>Seconds</th><th>Average FPS</th><th>Seconds with a slow frame, each minute</th><th>Slowest frame</th>"
+				        "<th>Draw calls, average</th><th>Game memory, largest</th></tr>\n";
+				int shown = 0;
+				for (const auto& place : places) {
+					if (place.seconds < 20) {
+						continue;
+					}
+					if (++shown > 30) {
+						break;
+					}
+					html += Fmt("<tr><td>%s</td><td>%d</td><td>%.0f</td><td>%.1f</td><td>%.0f ms</td><td>%.0f</td><td>%s</td></tr>\n",
+						Escape(place.name.empty() ? std::string("(not known)") : place.name).c_str(), place.seconds, place.sumFps / place.seconds,
+						static_cast<double>(place.slow) * 60.0 / place.seconds, static_cast<double>(place.worstMs), place.sumDrawCalls / place.seconds,
+						MemoryText(place.maxMb).c_str());
+				}
+				html += "</table>\n";
+			}
+
 			// Tables from SetTable.
 			for (const auto& table : g_tables) {
 				html += Fmt("<h2>%s</h2>\n", Escape(table.title).c_str());
@@ -1113,6 +1152,21 @@ namespace skydiag::report
 		const std::scoped_lock lock{ g_lock };
 		if (g_started && g_samples.size() < 48 * 3600) {
 			g_samples.push_back(a_sample);
+		}
+		if (g_started && Counts(a_sample)) {
+			auto it = std::find_if(g_places.begin(), g_places.end(), [](const Place& a_place) { return a_place.name == g_cell; });
+			if (it == g_places.end() && g_places.size() < 2000) {
+				g_places.push_back(Place{ g_cell });
+				it = g_places.end() - 1;
+			}
+			if (it != g_places.end()) {
+				++it->seconds;
+				it->sumFps += a_sample.fps;
+				it->slow += IsSlow(a_sample) ? 1 : 0;
+				it->worstMs = std::max(it->worstMs, a_sample.worstFrameMs);
+				it->maxMb = std::max(it->maxMb, a_sample.gameMb);
+				it->sumDrawCalls += a_sample.drawCalls;
+			}
 		}
 	}
 

@@ -1,0 +1,20 @@
+# INI checks of SkyrimDiagnostics.
+#
+# One rule on each line, the parts separated by a tab:
+#   added      the date this rule was added to the tool (YYYY-MM-DD). Rules
+#              can grow old: check the date before you trust one.
+#   file       ini = Skyrim.ini, prefs = SkyrimPrefs.ini (the values that the
+#              game uses, also when they come from a mod or a default)
+#   setting    name:Section, as the game knows it
+#   test       ne / eq / lt / gt VALUE, or gridbuffer (the exterior cell
+#              buffer is smaller than (uGridsToLoad + 1) squared)
+#   level      warning or note
+#   text       what the check means
+#
+# The build puts this file into the DLL.
+2026-11-18	ini	uGridsToLoad:General	ne 5	warning	The game is made for 5. Other values are not supported: they can damage saves and cause crashes and stutter. For more detail in the distance, use LOD mods (for example DynDOLOD) instead.
+2026-11-18	ini	uExterior Cell Buffer:General	gridbuffer	warning	The exterior cell buffer must hold at least (uGridsToLoad + 1) squared cells. A smaller buffer can cause crashes.
+2026-11-18	ini	fUpdateBudgetMS:Papyrus	ne 1.2	note	Changed from the default (1.2). A higher value gives scripts more time in each frame, at the cost of frame time. It does not fix script problems.
+2026-11-18	ini	fExtraTaskletBudgetMS:Papyrus	ne 1.2	note	Changed from the default (1.2). A higher value gives scripts more time in each frame, at the cost of frame time.
+2026-11-18	ini	bEnableLogging:Papyrus	eq 1	note	Papyrus logging is on. It costs a little performance. This tool reads the log (table 'Papyrus log'); turn it off when you do not need it.
+2026-11-18	ini	bEnableTrace:Papyrus	eq 1	note	Papyrus trace is on. It writes much more to the log than logging alone and costs performance. Turn it off when you do not need it.

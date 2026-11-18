@@ -76,9 +76,11 @@ add_library(
 	src/crash/Profiler.h
 	src/crash/Session.cpp
 	src/crash/Session.h
+	src/crash/SystemInfo.cpp
+	src/crash/SystemInfo.h
 	src/crash/Text.h
 )
-target_link_libraries(skydiag_crash PUBLIC dbghelp.lib psapi.lib version.lib advapi32.lib shell32.lib user32.lib)
+target_link_libraries(skydiag_crash PUBLIC dbghelp.lib psapi.lib version.lib advapi32.lib shell32.lib user32.lib dxgi.lib)
 target_include_directories(skydiag_crash PRIVATE "${CMAKE_CURRENT_BINARY_DIR}/generated")
 if(MSVC)
 	target_compile_options(skydiag_crash PRIVATE /W4 /permissive- /utf-8 /Zi)
@@ -94,6 +96,14 @@ string(REGEX REPLACE "([0-9a-f][0-9a-f])" "0x\\1," SKYDIAG_CONFIG_BYTES "${SKYDI
 file(MAKE_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/generated")
 file(WRITE "${CMAKE_CURRENT_BINARY_DIR}/generated/DefaultConfig.inc"
 	"// Made by CMake from SkyrimDiagnostics.ini. Do not change.\nstatic const unsigned char kDefaultConfig[] = { ${SKYDIAG_CONFIG_BYTES} 0x00 };\n")
+
+# The INI check rules (data/ini-rules.txt), into the program as an array.
+set(SKYDIAG_INI_RULES_FILE "${CMAKE_CURRENT_SOURCE_DIR}/data/ini-rules.txt")
+set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${SKYDIAG_INI_RULES_FILE}")
+file(READ "${SKYDIAG_INI_RULES_FILE}" SKYDIAG_INI_RULES_HEX HEX)
+string(REGEX REPLACE "([0-9a-f][0-9a-f])" "0x\\1," SKYDIAG_INI_RULES_BYTES "${SKYDIAG_INI_RULES_HEX}")
+file(WRITE "${CMAKE_CURRENT_BINARY_DIR}/generated/IniRules.inc"
+	"// Made by CMake from data/ini-rules.txt. Do not change.\nstatic const unsigned char kIniRules[] = { ${SKYDIAG_INI_RULES_BYTES} 0x00 };\n")
 
 add_library(
 	skydiag_stats STATIC
@@ -141,6 +151,7 @@ add_commonlibsse_plugin(
 )
 
 target_precompile_headers(${PROJECT_NAME} PRIVATE src/PCH.h)
+target_include_directories(${PROJECT_NAME} PRIVATE "${CMAKE_CURRENT_BINARY_DIR}/generated")
 target_link_libraries(${PROJECT_NAME} PRIVATE skydiag_crash skydiag_stats skydiag_gfx)
 
 target_compile_definitions(
