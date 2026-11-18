@@ -133,8 +133,6 @@ The session report has three tables:
   plugin, and of its functions for the SKSE messages of the game start. On
   Skyrim AE all plugins are measured; on SE and VR only the plugins that load
   after this tool.
-- **Game start: plugin files**: the approximate time of each plugin file
-  (from its open to the open of the next file).
 - **Save loads: SKSE plugins**: the co-save load and revert functions and the
   PreLoadGame and PostLoadGame functions of each plugin.
 
@@ -178,8 +176,9 @@ session table **GPU time by render pass**.
   `Logs/Script/Papyrus.0.log` by script function, and the stack dumps.
 - **Slow file reads**: file reads and opens of the game of 8 ms or more, by
   file (session report table), and in the event of each slow frame.
-- **Performance by place**: average FPS, slow frames, draw calls and memory
-  for each cell (session report table, slowest first).
+- **Performance by place**: average FPS, slow frames, draw calls, GPU time
+  each frame, the share of the time in which the GPU limits the FPS, and
+  memory, for each cell (session report table, slowest first).
 
 ## Planned
 

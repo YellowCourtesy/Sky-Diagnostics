@@ -34,6 +34,7 @@ namespace skydiag::report
 		std::uint32_t vramBudgetMb{ 0 }; // the video memory that the system gives to the game
 		float         papyrusRunning{ 0 };
 		float         papyrusMs{ 0 };         // script time each second (measured)
+		float         gpuMs{ 0 };             // GPU time of each frame (measured), 0 = not known
 		float         papyrusLatencyMs{ -1 }; // the last script latency test, -1 = none
 		std::uint32_t drawCalls{ 0 };        // draw calls in each frame, average
 		std::uint32_t references{ 0 };       // object references in use, 0 = not known

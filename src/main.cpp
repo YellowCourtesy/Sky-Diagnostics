@@ -632,6 +632,11 @@ namespace
 				skydiag::papyrus::GetSnapshot(scripts);
 				history.papyrusRunning = scripts.valid ? scripts.runningStacks : 0.0f;
 				history.papyrusMs = scripts.valid ? scripts.vmMsPerSecond : 0.0f;
+				{
+					skydiag::gpu::Snapshot gpuTime;
+					skydiag::gpu::GetSnapshot(gpuTime);
+					history.gpuMs = gpuTime.valid ? gpuTime.frameMs : 0.0f;
+				}
 				history.papyrusLatencyMs = scripts.valid ? scripts.latencyMs : -1.0f;
 
 				// Script latency test, each 5 seconds, on the game main thread.
@@ -1243,7 +1248,10 @@ namespace
 			}
 		}
 
-		// Game start, plugin files.
+		// Game start, plugin files: off. The test of 0.2.0 gave all the time to one file
+		// (the game does not open the plugin files one after another while it loads
+		// them), so the values are not usable.
+		if constexpr (false) {
 		skydiag::report::Table files;
 		files.title = "Game start: plugin files";
 		files.note = "The approximate load time of each plugin file: from the time the game opened it to the time it opened the next one. The 40 "
@@ -1265,6 +1273,7 @@ namespace
 		skydiag::report::SetTable(files);
 		if (a_log && filesTotal > 0) {
 			SKSE::log::info("Game start: plugin files {} in total", ms(filesTotal));
+		}
 		}
 
 		// Save loads: the functions of SKSE plugins.

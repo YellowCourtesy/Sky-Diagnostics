@@ -128,6 +128,9 @@ namespace skydiag::report
 			float         worstMs{ 0 };
 			std::uint32_t maxMb{ 0 };
 			double        sumDrawCalls{ 0 };
+			double        sumGpuMs{ 0 };
+			int           gpuSeconds{ 0 };
+			int           gpuBound{ 0 };   // seconds in which the GPU was busy 90 % of the time or more
 		};
 		std::vector<Place> g_places;
 		std::filesystem::path    g_dir;
@@ -682,9 +685,11 @@ namespace skydiag::report
 					return a_lhs.sumFps / std::max(a_lhs.seconds, 1) < a_rhs.sumFps / std::max(a_rhs.seconds, 1);
 				});
 				html += "<h2>Performance by place</h2>\n<p>The cells where the player was, the slowest first (average FPS). Only seconds in which the game "
-				        "ran normally count, and only places with 20 seconds or more.</p>\n"
+				        "ran normally count, and only places with 20 seconds or more. GPU limits: the share of the seconds in which the GPU was busy 90 % of "
+				        "the time or more. Then a faster GPU, a lower resolution or fewer graphics effects give more FPS. A low share means the processor "
+				        "(the game, a mod or the driver), a frame cap or VSync limits the FPS.</p>\n"
 				        "<table><tr><th>Place</th><th>Seconds</th><th>Average FPS</th><th>Seconds with a slow frame, each minute</th><th>Slowest frame</th>"
-				        "<th>Draw calls, average</th><th>Game memory, largest</th></tr>\n";
+				        "<th>Draw calls, average</th><th>GPU time each frame</th><th>GPU limits</th><th>Game memory, largest</th></tr>\n";
 				int shown = 0;
 				for (const auto& place : places) {
 					if (place.seconds < 20) {
@@ -693,10 +698,12 @@ namespace skydiag::report
 					if (++shown > 30) {
 						break;
 					}
-					html += Fmt("<tr><td>%s</td><td>%d</td><td>%.0f</td><td>%.1f</td><td>%.0f ms</td><td>%.0f</td><td>%s</td></tr>\n",
+					const std::string gpu = place.gpuSeconds ? Fmt("%.1f ms", place.sumGpuMs / place.gpuSeconds) : std::string("not known");
+					const std::string bound = place.gpuSeconds ? Fmt("%.0f %%", 100.0 * place.gpuBound / place.gpuSeconds) : std::string("not known");
+					html += Fmt("<tr><td>%s</td><td>%d</td><td>%.0f</td><td>%.1f</td><td>%.0f ms</td><td>%.0f</td><td>%s</td><td>%s</td><td>%s</td></tr>\n",
 						Escape(place.name.empty() ? std::string("(not known)") : place.name).c_str(), place.seconds, place.sumFps / place.seconds,
 						static_cast<double>(place.slow) * 60.0 / place.seconds, static_cast<double>(place.worstMs), place.sumDrawCalls / place.seconds,
-						MemoryText(place.maxMb).c_str());
+						gpu.c_str(), bound.c_str(), MemoryText(place.maxMb).c_str());
 				}
 				html += "</table>\n";
 			}
@@ -1166,6 +1173,11 @@ namespace skydiag::report
 				it->worstMs = std::max(it->worstMs, a_sample.worstFrameMs);
 				it->maxMb = std::max(it->maxMb, a_sample.gameMb);
 				it->sumDrawCalls += a_sample.drawCalls;
+				if (a_sample.gpuMs > 0.0f && a_sample.fps > 0.0f) {
+					it->sumGpuMs += a_sample.gpuMs;
+					++it->gpuSeconds;
+					it->gpuBound += a_sample.gpuMs * a_sample.fps >= 900.0f ? 1 : 0;
+				}
 			}
 		}
 	}

@@ -13,9 +13,9 @@
 //   changes the RegisterListener and SetLoadCallback functions of the SKSE
 //   interfaces; only functions that plugins give after that are timed.
 // - Plugin files (ESP, ESM, ESL): the time from the open of each file to the
-//   open of the next one, while the game loads its data. This is an
-//   approximate time of each file. The tool changes the CreateFile imports of
-//   the game executable.
+//   open of the next one. Not usable: the test of 0.2.0 gave all the time to
+//   one file, so the session report does not show it. The CreateFile and
+//   ReadFile imports of the game are still changed for the slow file reads.
 //
 // The functions that the game calls through these changes only measure time:
 // they call the original function at once and change nothing.
