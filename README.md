@@ -23,7 +23,7 @@ fix problems.
 | Live warnings with the most probable cause | Works, tested in the game (Proton) with the fault test plugin |
 | Settings file, load time reports | Works, tested in the game (Proton) |
 | Session report (HTML) and comparison with the last 10 sessions | In test |
-| Mod Organizer 2 plugin (file to mod map) | Written, not tested, not used by the tool yet |
+| Mod Organizer 2 plugin (file to mod map, profile) | Works: the game read its data in the test of 0.2.0 (158 mods) |
 | Known crash signs from Phostwood's Crash Log Analyzer data | Written, not tested |
 | Monitor process (rundll32.exe with this DLL): dumps from outside, reports when the game stops with no report, opens the report | Written, not tested |
 | Crash report: quick answer at the top, access violation type, hooks in the game code, caught errors, crash history, force close | Written, not tested |
@@ -32,7 +32,7 @@ fix problems.
 | Load times: SKSE plugins, plugin files, save loads | Written, not tested |
 | Papyrus: live stacks, function totals, script time, latency test | Written, not tested |
 | GPU time of each frame and render pass | Written, not tested |
-| Engine limits, memory attribution by DLL, HTML report | Not started |
+| Engine limits (references, plugins, animations), heap memory by mod DLL | Works, in the overlay and the session report |
 | SE 1.5.97, VR, other AE versions | Built, not tested |
 
 All crash, stall and unclean exit reports go to `SkyrimDiagnostics/Reports`
