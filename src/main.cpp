@@ -169,6 +169,7 @@ namespace
 	void HookModMemory();
 
 	skydiag::Settings g_settings;  // read from the configuration file at the start
+	std::filesystem::path g_reportFolder;  // Reports in the SkyrimDiagnostics folder
 
 	void InstallCrashHandler(const char* a_platform)
 	{
@@ -527,7 +528,6 @@ namespace
 		std::vector<std::uint32_t> drawCalls;
 	};
 	Capture g_capture;
-	std::filesystem::path g_reportFolder;  // Reports in the SkyrimDiagnostics folder
 
 	void CaptureTick(const skydiag::report::Sample& a_sample);
 	void UpdateGpuTable();
