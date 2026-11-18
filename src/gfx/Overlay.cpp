@@ -780,6 +780,19 @@ namespace skydiag::overlay
 							Part(g_settled ? High(scripts.maxStacks, 250.0, 500.0) : 0, "%u", scripts.maxStacks);
 							Part(0, ")");
 							EndLine();
+							if (scripts.vmMsPerSecond > 0.0f || scripts.latencyMs >= 0.0f) {
+								Part(0, "Papyrus: ");
+								if (scripts.vmMsPerSecond > 0.0f) {
+									Part(High(scripts.vmMsPerSecond, 50.0, 150.0), "%.1f", scripts.vmMsPerSecond);
+									Part(0, " ms script time each second");
+								}
+								if (scripts.latencyMs >= 0.0f) {
+									Part(0, "%slatency ", scripts.vmMsPerSecond > 0.0f ? ", " : "");
+									Part(High(scripts.latencyMs, 100.0, 250.0), "%.0f", scripts.latencyMs);
+									Part(0, " ms");
+								}
+								EndLine();
+							}
 						} else {
 							Line("Papyrus sampler: %s", papyrus::Status());
 						}
@@ -788,6 +801,22 @@ namespace skydiag::overlay
 						if (readScripts()) {
 							for (int i = 0; i < scripts.count && i < 4; ++i) {
 								Line("  %4.1f run  %5.1f wait  %s", scripts.entries[i].running, scripts.entries[i].waiting, scripts.entries[i].name);
+							}
+						}
+						break;
+					case layout::Part::kLiveStacks:
+						if (readScripts()) {
+							for (int i = 0; i < scripts.liveCount && i < 5; ++i) {
+								if (scripts.live[i].seconds < 1.0f) {
+									break;
+								}
+								if (i == 0) {
+									Line("Papyrus stacks, longest in their state: seconds, state, function");
+								}
+								Part(0, "  ");
+								Part(High(scripts.live[i].seconds, 10.0, 60.0), "%6.0f", scripts.live[i].seconds);
+								Part(0, "  %s  %s", scripts.live[i].state, scripts.live[i].name);
+								EndLine();
 							}
 						}
 						break;

@@ -28,6 +28,7 @@ namespace skydiag::layout
 			{ "papyrus", Part::kPapyrus },
 			{ "scripts", Part::kScripts },
 			{ "functions", Part::kFunctions },
+			{ "livestacks", Part::kLiveStacks },
 		};
 	}
 

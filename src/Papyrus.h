@@ -43,6 +43,14 @@ namespace skydiag::papyrus
 		float callsPerSecond;  // how many times the virtual machine ran code of the function
 	};
 
+	// A script stack that is active now (live list).
+	struct LiveEntry
+	{
+		char  name[96];   // "Script.Function" at the top of the stack
+		char  state[32];  // "running", "waits for a latent function", ...
+		float seconds;    // time in this state
+	};
+
 	struct Snapshot
 	{
 		bool          valid{ false };
@@ -56,10 +64,30 @@ namespace skydiag::papyrus
 		FunctionEntry functions[8];  // most running stacks first
 		int           timedCount{ 0 };
 		TimedEntry    timed[8];  // most time first. Empty if the time measurement is off
+		float         vmMsPerSecond{ 0 };   // time of all script functions together (measured), 0 = off
+		float         latencyMs{ -1 };      // the last latency test, -1 = none yet
+		int           liveCount{ 0 };
+		LiveEntry     live[10];             // the stacks that are longest in their state
 	};
 
 	// Result of the last full period (about 3 seconds). Safe from all threads.
 	void GetSnapshot(Snapshot& a_out);
+
+	// Script latency test: one call of a short script function through the
+	// queue of the virtual machine; the time until it ran. Call on the game
+	// main thread (an SKSE task), at most each few seconds.
+	void MeasureLatency();
+
+	// The session table of the time in each script function (all calls of
+	// the session): total, calls, average and largest call.
+	struct FunctionTotal
+	{
+		char          name[96];
+		double        totalMs;
+		std::uint32_t calls;
+		double        maxMs;
+	};
+	int GetFunctionTotals(FunctionTotal* a_out, int a_max);
 
 	// Text that says if the sampler works, for fault finding.
 	const char* Status();

@@ -30,6 +30,7 @@ namespace skydiag::layout
 		kPapyrus,
 		kScripts,
 		kFunctions,
+		kLiveStacks,
 	};
 
 	// Reads a layout text. Lines that are not known are ignored. Each

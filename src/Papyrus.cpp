@@ -113,6 +113,7 @@ namespace skydiag::papyrus
 			char                       name[96];
 			std::atomic<std::uint64_t> ticks;
 			std::atomic<std::uint32_t> calls;
+			std::atomic<std::uint64_t> maxTicks;  // the longest call
 			std::uint64_t              lastTicks;  // sampler thread only
 			std::uint32_t              lastCalls;  // sampler thread only
 		};
@@ -143,6 +144,9 @@ namespace skydiag::papyrus
 				if (key == a_function) {
 					slot.ticks.fetch_add(a_ticks, std::memory_order_relaxed);
 					slot.calls.fetch_add(1, std::memory_order_relaxed);
+					std::uint64_t max = slot.maxTicks.load(std::memory_order_relaxed);
+					while (a_ticks > max && !slot.maxTicks.compare_exchange_weak(max, a_ticks, std::memory_order_relaxed)) {
+					}
 					return;
 				}
 			}
@@ -180,6 +184,7 @@ namespace skydiag::papyrus
 					continue;
 				}
 				const float ms = static_cast<float>(static_cast<double>(deltaTicks) * 1000.0 / static_cast<double>(g_ticksPerSecond)) / a_seconds;
+				a_result.vmMsPerSecond += ms;
 				// Insert in the sorted result.
 				const int max = static_cast<int>(std::size(a_result.timed));
 				int       position = a_result.timedCount;
@@ -211,6 +216,113 @@ namespace skydiag::papyrus
 			g_originalCall = reinterpret_cast<CallFn>(table.write_vfunc(0x0F, reinterpret_cast<std::uintptr_t>(&HookedCall)));
 			SKSE::log::info("Papyrus function time measurement is on.");
 		}
+
+		// ------------------------------------------------------- live list
+		//
+		// Each stack is followed from sample to sample by its id: the time in
+		// its present state.
+
+		struct LiveStack
+		{
+			std::uint32_t id;
+			std::uint32_t state;
+			std::uint64_t since;  // NowMs of the state change
+			bool          seen;
+			char          name[96];
+		};
+		constexpr int kMaxLive = 1024;
+		LiveStack     g_live[kMaxLive];
+		int           g_liveCount = 0;
+
+		std::uint64_t NowMs()
+		{
+			return static_cast<std::uint64_t>(std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now().time_since_epoch()).count());
+		}
+
+		const char* StateText(std::uint32_t a_state)
+		{
+			switch (a_state) {
+			case 0:
+				return "running";
+			case 2:
+				return "waits for memory";
+			case 3:
+				return "waits for a latent function";
+			case 4:
+				return "waits for a call";
+			case 5:
+			case 6:
+				return "waits for a return";
+			case 7:
+			case 8:
+				return "retry";
+			default:
+				return "other";
+			}
+		}
+
+		void NoteLive(std::uint32_t a_id, std::uint32_t a_state, const char* a_script, const char* a_function, std::uint64_t a_now)
+		{
+			int i = 0;
+			for (; i < g_liveCount && g_live[i].id != a_id; ++i) {
+			}
+			if (i == g_liveCount) {
+				if (g_liveCount >= kMaxLive) {
+					return;
+				}
+				++g_liveCount;
+				g_live[i].id = a_id;
+				g_live[i].state = a_state;
+				g_live[i].since = a_now;
+			} else if (g_live[i].state != a_state) {
+				g_live[i].state = a_state;
+				g_live[i].since = a_now;
+			}
+			g_live[i].seen = true;
+			_snprintf_s(g_live[i].name, _TRUNCATE, "%s.%s", a_script ? a_script : "?", a_function ? a_function : "?");
+		}
+
+		// After a full sample: removes the stacks that are gone.
+		void EndLive()
+		{
+			int out = 0;
+			for (int i = 0; i < g_liveCount; ++i) {
+				if (g_live[i].seen) {
+					g_live[i].seen = false;
+					g_live[out++] = g_live[i];
+				}
+			}
+			g_liveCount = out;
+		}
+
+		void PublishLive(Snapshot& a_result)
+		{
+			const std::uint64_t now = NowMs();
+			for (int i = 0; i < g_liveCount; ++i) {
+				const float seconds = static_cast<float>(now - g_live[i].since) / 1000.0f;
+				const int   max = static_cast<int>(std::size(a_result.live));
+				int         position = a_result.liveCount;
+				while (position > 0 && a_result.live[position - 1].seconds < seconds) {
+					--position;
+				}
+				if (position >= max) {
+					continue;
+				}
+				const int last = a_result.liveCount < max ? a_result.liveCount : max - 1;
+				for (int j = last; j > position; --j) {
+					a_result.live[j] = a_result.live[j - 1];
+				}
+				auto& out = a_result.live[position];
+				strncpy_s(out.name, g_live[i].name, _TRUNCATE);
+				strncpy_s(out.state, StateText(g_live[i].state), _TRUNCATE);
+				out.seconds = seconds;
+				if (a_result.liveCount < max) {
+					++a_result.liveCount;
+				}
+			}
+		}
+
+		std::atomic<float> g_latencyMs{ -1.0f };
 
 		// Reads the stack list with no lock. The virtual machine can change
 		// the list at the same time, so a read can fail: the caller catches
@@ -245,6 +357,11 @@ namespace skydiag::papyrus
 					continue;
 				}
 				Count(a_acc.scripts, a_acc.scriptCount, name, nullptr, running);
+				{
+					const auto* function = reinterpret_cast<const RE::BSScript::Internal::ScriptFunction*>(frame->owningFunction.get());
+					NoteLive(static_cast<std::uint32_t>(stack->stackID), static_cast<std::uint32_t>(stack->state.underlying()), name,
+						function ? function->name.c_str() : nullptr, NowMs());
+				}
 				// The function at the top of a stack that runs. The name is
 				// at the same place in script functions and native
 				// functions (the two classes start with the same members).
@@ -259,6 +376,7 @@ namespace skydiag::papyrus
 			if (total > a_acc.maxStacks) {
 				a_acc.maxStacks = total;
 			}
+			EndLive();
 			++a_acc.samples;
 		}
 
@@ -304,6 +422,8 @@ namespace skydiag::papyrus
 				}
 			}
 			PublishTimed(result, static_cast<float>(kPeriodSamples) * 0.05f);
+			PublishLive(result);
+			result.latencyMs = g_latencyMs.load();
 			const std::scoped_lock lock{ g_snapshotLock };
 			g_snapshot = result;
 		}
@@ -400,6 +520,84 @@ namespace skydiag::papyrus
 			std::thread(SamplerLoop).detach();
 			SKSE::log::info("Papyrus sampler is on.");
 		});
+	}
+
+	namespace
+	{
+		std::atomic<bool>                     g_latencyPending{ false };
+		std::chrono::steady_clock::time_point g_latencyStart;
+
+		// The VM calls this when the test call is done.
+		class LatencyCallback : public RE::BSScript::IStackCallbackFunctor
+		{
+		public:
+			void operator()(RE::BSScript::Variable) override
+			{
+				const auto ms = std::chrono::duration<float, std::milli>(std::chrono::steady_clock::now() - g_latencyStart).count();
+				g_latencyMs.store(ms);
+				g_latencyPending = false;
+			}
+			bool CanSave() const override { return false; }
+			void SetObject(const RE::BSTSmartPointer<RE::BSScript::Object>&) override {}
+		};
+	}
+
+	void MeasureLatency()
+	{
+		auto* vm = VM::GetSingleton();
+		if (!vm || !g_vm) {
+			return;
+		}
+		if (g_latencyPending.load()) {
+			// No answer yet: the time so far is the latency (at least).
+			const auto ms = std::chrono::duration<float, std::milli>(std::chrono::steady_clock::now() - g_latencyStart).count();
+			if (ms > g_latencyMs.load()) {
+				g_latencyMs.store(ms);
+			}
+			return;
+		}
+		g_latencyPending = true;
+		g_latencyStart = std::chrono::steady_clock::now();
+		RE::BSTSmartPointer<RE::BSScript::IStackCallbackFunctor> callback{ new LatencyCallback() };
+		if (!vm->DispatchStaticCall("Utility", "GetCurrentRealTime", RE::MakeFunctionArguments(), callback)) {
+			g_latencyPending = false;
+		}
+	}
+
+	int GetFunctionTotals(FunctionTotal* a_out, int a_max)
+	{
+		int count = 0;
+		if (!g_originalCall || g_ticksPerSecond <= 0) {
+			return 0;
+		}
+		const double toMs = 1000.0 / static_cast<double>(g_ticksPerSecond);
+		for (auto& slot : g_timed) {
+			if (!slot.ready.load(std::memory_order_acquire)) {
+				continue;
+			}
+			FunctionTotal entry{};
+			strncpy_s(entry.name, slot.name, _TRUNCATE);
+			entry.totalMs = static_cast<double>(slot.ticks.load(std::memory_order_relaxed)) * toMs;
+			entry.calls = slot.calls.load(std::memory_order_relaxed);
+			entry.maxMs = static_cast<double>(slot.maxTicks.load(std::memory_order_relaxed)) * toMs;
+			// Keep the a_max entries with the most total time.
+			int position = count;
+			while (position > 0 && a_out[position - 1].totalMs < entry.totalMs) {
+				--position;
+			}
+			if (position >= a_max) {
+				continue;
+			}
+			const int last = count < a_max ? count : a_max - 1;
+			for (int j = last; j > position; --j) {
+				a_out[j] = a_out[j - 1];
+			}
+			a_out[position] = entry;
+			if (count < a_max) {
+				++count;
+			}
+		}
+		return count;
 	}
 
 	void GetSnapshot(Snapshot& a_out)

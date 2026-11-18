@@ -493,6 +493,8 @@ namespace
 		}
 	}
 
+	void UpdatePapyrusTable();
+
 	void WatchdogLoop()
 	{
 		const auto kStallLimit = std::chrono::seconds(g_settings.stallSeconds);
@@ -520,6 +522,7 @@ namespace
 		auto       lastReadChange = Clock::now();
 
 		int secondsSinceHookScan = 0;
+		int secondsSinceLatency = 0;
 		for (;;) {
 			std::this_thread::sleep_for(1s);
 			skydiag::monitor::Beat();
@@ -617,6 +620,14 @@ namespace
 				skydiag::papyrus::Snapshot scripts;
 				skydiag::papyrus::GetSnapshot(scripts);
 				history.papyrusRunning = scripts.valid ? scripts.runningStacks : 0.0f;
+				history.papyrusMs = scripts.valid ? scripts.vmMsPerSecond : 0.0f;
+				history.papyrusLatencyMs = scripts.valid ? scripts.latencyMs : -1.0f;
+
+				// Script latency test, each 5 seconds, on the game main thread.
+				if (g_settings.papyrus && g_settings.papyrusLatency && g_dataLoaded.load() && !g_loading.load() && ++secondsSinceLatency >= 5) {
+					secondsSinceLatency = 0;
+					tasks->AddTask([] { skydiag::papyrus::MeasureLatency(); });
+				}
 
 				// Engine values: one time each 15 seconds, when the game data is loaded.
 				if (g_settings.engineLimits && g_dataLoaded.load() && ++secondsSinceEngine >= 15) {
@@ -680,6 +691,7 @@ namespace
 
 				if (++secondsSinceWrite >= 60) {
 					secondsSinceWrite = 0;
+					UpdatePapyrusTable();
 					WriteReport();
 				}
 
@@ -861,6 +873,27 @@ namespace
 		bool         _mainMenuSeen{ false };
 		bool         _mainMenuOpen{ false };
 	};
+
+	// The session table of the time in each script function.
+	void UpdatePapyrusTable()
+	{
+		static skydiag::papyrus::FunctionTotal totals[40];
+		const int                             count = skydiag::papyrus::GetFunctionTotals(totals, static_cast<int>(std::size(totals)));
+		if (count == 0) {
+			return;
+		}
+		skydiag::report::Table table;
+		table.title = "Papyrus functions in this session";
+		table.note = "The time that the script engine used in the code of each script function, all calls of the session together (measured, "
+		             "PapyrusTime). A function with a high average or largest time is slow in each call; one with many calls is called too often.";
+		table.headers = { "Function", "Total", "Calls", "Average", "Largest call" };
+		for (int i = 0; i < count; ++i) {
+			const auto& t = totals[i];
+			table.rows.push_back({ t.name, fmt::format("{:.0f} ms", t.totalMs), std::to_string(t.calls),
+				fmt::format("{:.3f} ms", t.calls ? t.totalMs / t.calls : 0.0), fmt::format("{:.2f} ms", t.maxMs) });
+		}
+		skydiag::report::SetTable(table);
+	}
 
 	// The load time tables of the session report (see crash/LoadTimes.h).
 	void UpdateLoadTimeTables(bool a_log)

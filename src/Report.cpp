@@ -507,6 +507,9 @@ namespace skydiag::report
 			html += Graph(g_samples, GraphTitle(g_samples, "Game memory", "maximum", gameMax, "MB", game), "MB", gameMax, game);
 			html += Graph(g_samples, GraphTitle(g_samples, "Video memory", "maximum", vramMax, "MB", vram), "MB", vramMax, vram);
 			html += Graph(g_samples, "Papyrus script stacks that run", "stacks", 0.0f, [](const Sample& s) { return s.papyrusRunning; });
+			html += Graph(g_samples, "Papyrus script time each second (all script functions)", "ms", 0.0f, [](const Sample& s) { return s.papyrusMs; });
+			html += Graph(g_samples, "Papyrus script latency (time from a call to its run)", "ms", 0.0f,
+				[](const Sample& s) { return s.papyrusLatencyMs < 0.0f ? 0.0f : s.papyrusLatencyMs; });
 			html += Graph(g_samples, "Draw calls in each frame", "draw calls", 0.0f, [](const Sample& s) { return static_cast<float>(s.drawCalls); });
 			if (!g_samples.empty() && g_samples.back().animations != 0) {
 				html += Graph(g_samples, "Loaded animation files", "animations", 0.0f, [](const Sample& s) { return static_cast<float>(s.animations); });
