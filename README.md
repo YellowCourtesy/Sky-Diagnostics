@@ -62,7 +62,8 @@ defaults, change that file and build again.
   `ToggleKey` settings and the `F10` key are removed; an old settings file
   with them still loads.
 - Each new warning is also sent one time to the AbyssusLib notification
-  queue (10 seconds).
+  queue (10 seconds). The Plugins warning is different: it stays in the queue
+  while it shows (always when over the limit).
 - The log file is `SkyrimDiagnostics/SkyrimDiagnostics.log` in the SKSE log folder.
 - Settings are in `Data/SKSE/Plugins/SkyrimDiagnostics.ini` (warning
   limits, sampler switches). The file has a comment for
@@ -83,11 +84,11 @@ defaults, change that file and build again.
 | Memory growth | 30 MB each minute for 5 minutes and in the last 2 minutes, with no loading screen | Possible leak, and the time until memory is full |
 | Papyrus | 500 script stacks or more | Scripts are slow, stack dumps are possible |
 | Object references | 80 % of the 1,048,576 reference handles in use (critical at 95 %) | The game can crash when all are in use |
-| Plugins | 90 % of 254 full plugins or of 4,096 light plugins: shows only until 1 minute after the first loading screen. Above the maximum: critical, shows always | The count is near or over the limit |
+| Plugins | 90 % of 254 full plugins or of 4,096 light plugins: shows until 1 minute after the first cell is loaded (the first loading screen after the main menu). Above the maximum: critical, shows always. In the notification queue, this warning stays while it shows | The count is near or over the limit |
 
 In the main menu, and from the game start until the main menu closes, only
-the Plugins warning shows. All other warnings are off there, also in the
-session report.
+the Plugins warning and the critical Memory and Video memory warnings (memory
+full) show. All other warnings are off there, also in the session report.
 
 Frame, stutter, latency and Papyrus warnings are off during a loading
 screen and for 10 seconds after it.

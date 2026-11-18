@@ -90,6 +90,7 @@ namespace abyssus
 		using NotifyFn = void (*)(const char* a_source, const char* a_text, float a_seconds, int a_level);
 		using StatusFn = void (*)(const char* a_source, const char* a_text);
 		using WindowFn = void (*)(const char* a_source, const char* a_id, const AbyssusWindow* a_window);
+		using NoteFn = void (*)(const char* a_source, const char* a_id, const char* a_text, int a_level);
 
 		struct Api
 		{
@@ -97,6 +98,7 @@ namespace abyssus
 			NotifyFn  notify{ nullptr };
 			StatusFn  status{ nullptr };
 			WindowFn  window{ nullptr };
+			NoteFn    note{ nullptr };
 		};
 
 		inline const Api& Get()
@@ -112,6 +114,7 @@ namespace abyssus
 					}
 					if (version >= 2) {
 						a.window = reinterpret_cast<WindowFn>(ABYSSUS_GET_PROC(module, "AbyssusAPI_SetWindow"));
+						a.note = reinterpret_cast<NoteFn>(ABYSSUS_GET_PROC(module, "AbyssusAPI_SetNote"));
 					}
 				}
 				return a;
@@ -134,6 +137,17 @@ namespace abyssus
 		if (const auto fn = detail::Get().notify)
 			fn(a_source, a_text, a_seconds, static_cast<int>(a_level));
 	}
+
+	// A note in the notification queue that stays until it is changed or
+	// cleared (no time limit). A change keeps its place in the queue. An
+	// empty or null a_text clears it. a_id is unique in a_source.
+	inline void SetNote(const char* a_source, const char* a_id, const char* a_text, Level a_level = Level::kInfo)
+	{
+		if (const auto fn = detail::Get().note)
+			fn(a_source, a_id, a_text, static_cast<int>(a_level));
+	}
+
+	inline void ClearNote(const char* a_source, const char* a_id) { SetNote(a_source, a_id, nullptr); }
 
 	// A permanent status line for a_source, shown until it is changed or
 	// cleared. An empty or null a_text clears it.

@@ -269,6 +269,41 @@ namespace skydiag::overlay
 		char          g_stutterCause[120] = "";
 		LARGE_INTEGER g_stutterTime{};
 
+		abyssus::Level NoteLevel(advisor::Severity a_severity)
+		{
+			return a_severity == advisor::Severity::kCritical ? abyssus::Level::kError :
+			       a_severity == advisor::Severity::kWarning  ? abyssus::Level::kWarning :
+			                                                    abyssus::Level::kInfo;
+		}
+
+		// Warnings that are used in the main menu: the plugin count, and a
+		// crash that is probable (memory or video memory full).
+		bool MainMenuWarning(const char* a_id)
+		{
+			return std::strcmp(a_id, "plugins") == 0 || std::strcmp(a_id, "memory-full") == 0 || std::strcmp(a_id, "vram-full") == 0;
+		}
+
+		// The plugin warning is a note without time limit in the queue: it
+		// stays while the warning shows. Over the limit: always. Near the
+		// limit: until 1 minute after the first cell is loaded, plus the
+		// warning hold time.
+		std::string g_pluginNote;  // the text that is in the queue, empty = none
+
+		void UpdatePluginNote()
+		{
+			const ShownWarning* plugins = nullptr;
+			for (const auto& shown : g_shown) {
+				if (shown.used && std::strcmp(shown.warning.id, "plugins") == 0) {
+					plugins = &shown;
+				}
+			}
+			const std::string text = plugins ? plugins->warning.text : "";
+			if (text != g_pluginNote) {
+				g_pluginNote = text;
+				abyssus::SetNote(kSource, "plugins", text.c_str(), plugins ? NoteLevel(plugins->warning.severity) : abyssus::Level::kInfo);
+			}
+		}
+
 		// Collects the current measurements and makes the warning list.
 		// Runs two times each second.
 		void UpdateWarnings(const LARGE_INTEGER& a_now)
@@ -349,18 +384,19 @@ namespace skydiag::overlay
 			int                     count = advisor::Evaluate(in, current, static_cast<int>(std::size(current)));
 
 			// Main menu: the frame, memory and script values of the main menu
-			// and of the game start are not useful. Only the plugin count
-			// (near or over the limit) is. Warnings that show are removed.
+			// and of the game start are not useful. Only the plugin count and
+			// a probable crash (memory or video memory full) are. Other
+			// warnings that show are removed.
 			if (g_inMainMenu.load()) {
 				int kept = 0;
 				for (int i = 0; i < count; ++i) {
-					if (std::strcmp(current[i].id, "plugins") == 0) {
+					if (MainMenuWarning(current[i].id)) {
 						current[kept++] = current[i];
 					}
 				}
 				count = kept;
 				for (auto& shown : g_shown) {
-					if (shown.used && std::strcmp(shown.warning.id, "plugins") != 0) {
+					if (shown.used && !MainMenuWarning(shown.warning.id)) {
 						shown.used = false;
 					}
 				}
@@ -384,11 +420,11 @@ namespace skydiag::overlay
 					const char* level = current[i].severity == advisor::Severity::kCritical ? "Critical" :
 					                    current[i].severity == advisor::Severity::kWarning ? "Warning" : "Note";
 					session::Event("%s: %s", level, current[i].text);
-					// And one time a note in the notification queue of AbyssusLib.
-					abyssus::Notify(kSource, current[i].text, 10.0f,
-						current[i].severity == advisor::Severity::kCritical ? abyssus::Level::kError :
-						current[i].severity == advisor::Severity::kWarning  ? abyssus::Level::kWarning :
-						                                                       abyssus::Level::kInfo);
+					// And one time a note in the notification queue of AbyssusLib
+					// (the plugin warning: see UpdatePluginNote).
+					if (std::strcmp(current[i].id, "plugins") != 0) {
+						abyssus::Notify(kSource, current[i].text, 10.0f, NoteLevel(current[i].severity));
+					}
 					// The session report lists the suggestions for this problem type.
 					report::NoteProblem(current[i].id);
 					for (auto& shown : g_shown) {
@@ -415,6 +451,7 @@ namespace skydiag::overlay
 					++g_warningCount;
 				}
 			}
+			UpdatePluginNote();
 		}
 
 		// The two windows, and the builder that Part, Line and EndLine write to.

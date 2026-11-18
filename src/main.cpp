@@ -165,7 +165,7 @@ namespace
 	std::atomic<std::uint32_t> g_lastResponseMs{ 0 };   // response time of the last answered request
 	std::atomic<std::uint32_t> g_updateThreadId{ 0 };   // 0 = the update thread did not answer yet
 	std::atomic<bool>          g_beatPending{ false };
-	std::atomic<Clock::rep>    g_firstLoadEnd{ 0 };     // when the first loading screen ended, 0 = not yet
+	std::atomic<Clock::rep>    g_firstLoadEnd{ 0 };     // when the first cell was loaded (first loading screen after the main menu), 0 = not yet
 	std::atomic<bool>          g_loading{ false };      // a loading screen is open
 	std::atomic<bool>          g_dataLoaded{ false };
 	skydiag::overlay::EngineState g_engineState;         // watchdog thread only
@@ -301,7 +301,8 @@ namespace
 				}
 			}
 		}
-		// The plugin warning shows until 1 minute after the first loading screen.
+		// The "near the limit" plugin warning shows until 1 minute after the
+		// first cell is loaded.
 		const auto firstLoadEnd = g_firstLoadEnd.load();
 		g_engineState.pluginWarningTime = firstLoadEnd == 0 || Clock::now().time_since_epoch() - Clock::duration(firstLoadEnd) < 60s;
 		skydiag::overlay::SetEngineState(g_engineState);
@@ -645,6 +646,7 @@ namespace
 				skydiag::session::Event("Menu %s: %s", a_event->opening ? "open" : "close", a_event->menuName.c_str());
 				const char* menu = a_event->menuName.c_str();
 				if (std::strcmp(menu, "Main Menu") == 0) {
+					_mainMenuOpen = a_event->opening;
 					skydiag::overlay::SetInMainMenu(a_event->opening);
 				}
 				if (std::strcmp(menu, "Main Menu") == 0 && a_event->opening && !_mainMenuSeen) {
@@ -660,7 +662,9 @@ namespace
 					} else if (_loadStart != 0) {
 						ReportLoad("Loading screen", _loadStart, skydiag::profiler::Now(), _loadFromCell);
 						_loadStart = 0;
-						if (g_firstLoadEnd.load() == 0) {
+						// The first cell: a loading screen after the main menu,
+						// not one before it.
+						if (g_firstLoadEnd.load() == 0 && _mainMenuSeen && !_mainMenuOpen) {
 							g_firstLoadEnd = Clock::now().time_since_epoch().count();
 						}
 					}
@@ -675,6 +679,7 @@ namespace
 		std::int64_t _loadStart{ 0 };
 		std::string  _loadFromCell;
 		bool         _mainMenuSeen{ false };
+		bool         _mainMenuOpen{ false };
 	};
 
 	void OnMessage(SKSE::MessagingInterface::Message* a_msg)
