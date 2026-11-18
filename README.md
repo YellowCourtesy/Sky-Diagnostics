@@ -25,6 +25,13 @@ fix problems.
 | Session report (HTML) and comparison with the last 10 sessions | In test |
 | Mod Organizer 2 plugin (file to mod map) | Written, not tested, not used by the tool yet |
 | Known crash signs from Phostwood's Crash Log Analyzer data | Written, not tested |
+| Monitor process (rundll32.exe with this DLL): dumps from outside, reports when the game stops with no report, opens the report | Written, not tested |
+| Crash report: quick answer at the top, access violation type, hooks in the game code, caught errors, crash history, force close | Written, not tested |
+| Crash report: all plugins of an object, leveled actors, MO2 profile, save, PDB function names, Crash Logger log | Written, not tested |
+| Stall report: wait analysis (dialog windows, wait chain, graphics driver); infinite loading screen report | Written, not tested |
+| Load times: SKSE plugins, plugin files, save loads | Written, not tested |
+| Papyrus: live stacks, function totals, script time, latency test | Written, not tested |
+| GPU time of each frame and render pass | Written, not tested |
 | Engine limits, memory attribution by DLL, HTML report | Not started |
 | SE 1.5.97, VR, other AE versions | Built, not tested |
 
@@ -50,6 +57,102 @@ file open) is in the log and in the events, with the cause.
 
 The Suggestions section of the report comes from the `[[Suggestions]]` part
 of the configuration file.
+
+## Monitor process
+
+When the game starts, the tool starts a second process: `rundll32.exe` from
+Windows runs the function `SkyDiagMonitor` of `SkyrimDiagnostics.dll`. There
+is no extra program file, and it starts with SKSE (also from Mod Organizer
+2). It stops when the game stops. Its log is
+`SkyrimDiagnostics/Monitor.log` in the SKSE log folder. Setting:
+`[Monitor] Monitor`.
+
+- It writes the minidump of a crash, a stall or an infinite loading screen
+  from outside the game. This also works when the game process is too
+  damaged to write it.
+- When the game stops with an error code and no crash report (fail fast,
+  stack overflow, heap corruption), it writes an unclean exit report with the
+  exit code at once.
+- When all of the game stops (also the watchdog thread of the tool), it
+  writes `freeze-outside-*.log`: the wait chains of the threads and the
+  dialog windows of the game.
+- After a crash, when the game closed: it adds the function names from PDB
+  files of mod DLLs (a `.pdb` file next to the DLL), adds the Crash Logger log
+  of the same crash (if Crash Logger is installed), copies the MO2 mod list
+  next to the report (`crash-*-mods.tsv`), and opens the report
+  (`[Monitor] OpenReport`). A crash while the game closes is not opened.
+
+Some antivirus programs do not like `rundll32.exe` running a DLL from a game
+folder. If yours stops it, add an exception, or set `Monitor = 0`.
+
+## Crash report
+
+- **QUICK ANSWER** at the top: what happened in plain words, the suspect and
+  how likely it is, one thing to try, and how often a crash at the same place
+  happened before (`crash-history.txt` in the report folder).
+- Access violations in plain words: null pointer, an object that was already
+  deleted (free memory), a bad index (reserved memory), read-only memory, the
+  end of a thread stack, a jump into freed code.
+- Hooks in the game code: the tool compares the game code in memory with the
+  game file and records each jump of a DLL out of the game code. The report
+  names the hooks near the crash place, the hook that went to freed code, and
+  the number of hooks of each DLL.
+- Errors that code caught before the crash (access violations that did not
+  end the game), DLLs that hide crashes (`crashguard`), and other crash
+  handlers.
+- Force close: Alt+F4, the X button and Quit are recorded. A crash after them
+  is a crash while the game closes: it is not counted in the history and the
+  report does not open. A long wait after Quit is a slow shutdown, not a stall.
+- Objects near the crash: all plugins that change them; for an actor from a
+  leveled list, also the forms it was made from.
+- The lines `Save:` (the save that is loading or was loaded last) and
+  `Mod setup:` (the MO2 profile and the number of active mods; the MO2 plugin
+  writes `profile.txt`).
+
+## Stall and loading screen reports
+
+- The stall report has a wait analysis of the game update thread: a dialog
+  window (an error message of a DLL), the wait chain (the lock and the thread
+  that holds it, with its mod DLL), the graphics driver, or Direct3D.
+- A loading screen that is open longer than `LoadingScreenSeconds` (120),
+  with no data read from the disk in the last 30 seconds, gives an infinite
+  loading screen report (`loading-*.log`).
+
+## Load times
+
+The session report has three tables:
+
+- **Game start: SKSE plugins**: the time of the load function of each SKSE
+  plugin, and of its functions for the SKSE messages of the game start. On
+  Skyrim AE all plugins are measured; on SE and VR only the plugins that load
+  after this tool.
+- **Game start: plugin files**: the approximate time of each plugin file
+  (from its open to the open of the next file).
+- **Save loads: SKSE plugins**: the co-save load and revert functions and the
+  PreLoadGame and PostLoadGame functions of each plugin.
+
+A loading screen over 30 seconds, or a game start over 120 seconds, adds the
+`load-slow` suggestions (loose files, BSA archives).
+
+## Papyrus
+
+- Overlay part `livestacks`: the script stacks that are longest in their
+  state (running, waits for a latent function, and the like).
+- Session table **Papyrus functions in this session**: total time, calls,
+  average and largest call of each script function (`PapyrusTime`).
+- Script time each second of all script functions: overlay value and graph.
+- Script latency (`PapyrusLatency`): each 5 seconds, one call of
+  `Utility.GetCurrentRealTime` through the queue of the script engine; the
+  time until it ran. The values are not the same as those of Elephant's
+  Script Latency Tester, which measures update events.
+
+## GPU time
+
+`GpuPasses`: the GPU time of each frame and of each render pass, with
+timestamp queries. A render pass is the work between two changes of the
+render targets; it is named by its render target (size and format), because
+the names of the game's passes are not known. Overlay part `gpupasses` and
+session table **GPU time by render pass**.
 
 ## Known crash signs (Phostwood's data)
 
