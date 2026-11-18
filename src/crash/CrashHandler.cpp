@@ -1819,16 +1819,24 @@ namespace skydiag::crash
 		wchar_t        path[800];
 		swprintf_s(path, L"%s\\%s-%04u-%02u-%02u-%02u-%02u-%02u.log", g_reportDir, kind, now.wYear, now.wMonth, now.wDay, now.wHour, now.wMinute,
 			now.wSecond);
+		// The text report first: the dump can take a long time, and the process can end while
+		// the monitor writes it (test of 0.2.0 under Wine: the .dmp was written, the .log not).
+		const std::size_t textLen = out.len;
+		if (g_writeMinidump) {
+			Put(out, "\nMinidump: being written by the monitor process (same file name, .dmp). If this line stays, the game stopped while the dump was written.\n");
+		}
+		bool ok = WriteReportFile(path, out, nullptr);
 		if (g_writeMinidump) {
 			// A dump of the frozen game, from the monitor process.
 			wchar_t dumpPath[800];
 			swprintf_s(dumpPath, L"%s\\%s-%04u-%02u-%02u-%02u-%02u-%02u.dmp", g_reportDir, kind, now.wYear, now.wMonth, now.wDay, now.wHour,
 				now.wMinute, now.wSecond);
 			const bool dump = monitor::RequestDump(dumpPath, nullptr, a_focusThreadId, 60000);
-			Put(out, "\nMinidump: %s\n", dump ? "written by the monitor process (same file name, .dmp)" : "not written (the monitor process is not running)");
+			out.len = textLen;
+			out.buf[out.len] = '\0';
+			Put(out, "\nMinidump: %s\n", dump ? "written by the monitor process (same file name, .dmp)" : "not written (the monitor process is not running, or it did not answer in 60 s)");
+			ok = WriteReportFile(path, out, nullptr) && ok;
 		}
-
-		const bool ok = WriteReportFile(path, out, nullptr);
 		InterlockedExchange(&g_inStall, 0);
 		return ok;
 	}
