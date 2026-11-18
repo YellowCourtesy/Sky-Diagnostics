@@ -56,10 +56,16 @@ defaults, change that file and build again.
 - The overlay needs AbyssusLib 2 or later (a separate SKSE plugin). AbyssusLib
   draws all windows and notes of the tool. Without AbyssusLib, the overlay
   does not show, a message box tells this at the start, and the reports work.
-- `F10` changes the view: all data and warnings, warnings only, off. When the view changes to off, a note shows for 10 seconds.
+- The data window and the warnings are at the top left of the AbyssusLib
+  stack. `F11` (in AbyssusLib) cycles the configurations: Diag / GPS / Notif,
+  GPS / Notif, GPS, Notif, Off. "Diag" is this tool. The `View` and
+  `ToggleKey` settings and the `F10` key are removed; an old settings file
+  with them still loads.
+- Each new warning is also sent one time to the AbyssusLib notification
+  queue (10 seconds).
 - The log file is `SkyrimDiagnostics/SkyrimDiagnostics.log` in the SKSE log folder.
-- Settings are in `Data/SKSE/Plugins/SkyrimDiagnostics.ini` (view at start,
-  view key, warning limits, sampler switches). The file has a comment for
+- Settings are in `Data/SKSE/Plugins/SkyrimDiagnostics.ini` (warning
+  limits, sampler switches). The file has a comment for
   each setting.
 - `MO2-plugin/skyrim_diagnostics_export.py` in the package is a Mod
   Organizer 2 plugin. Copy it to the MO2 `plugins` folder. It writes the mod
@@ -159,14 +165,16 @@ or later, Ninja, vcpkg with the `VCPKG_ROOT` environment variable set.
 Run these commands in an "x64 Native Tools Command Prompt for VS 2022":
 
 ```
-git clone --recursive https://github.com/YellowCourtesy/metakill.git
-cd metakill
+git clone --recursive https://github.com/YellowCourtesy/Sky-Diagnostics.git
+cd Sky-Diagnostics
 cmake --preset release
 cmake --build --preset release
 cmake --install build/release
 ```
 
-The mod folder is `build/package`.
+The mod folder is `build/package`. CommonLibSSE-NG is a git submodule in
+`lib/commonlibsse-ng` (v16.4.0, the same version as AbyssusLib and SkyGPS). In
+a clone without `--recursive`, run `git submodule update --init --recursive`.
 
 ## License
 

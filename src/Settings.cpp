@@ -67,17 +67,7 @@ namespace skydiag
 			double            number = 0.0;
 			const bool        isNumber = Number(value, number);
 
-			if (key == "view") {
-				if (value == "all") {
-					result.view = 0;
-				} else if (value == "warnings") {
-					result.view = 1;
-				} else if (value == "off") {
-					result.view = 2;
-				}
-			} else if (key == "togglekey" && isNumber && number >= 1 && number <= 254) {
-				result.toggleKey = static_cast<int>(number);
-			} else if (key == "warningholdseconds" && isNumber && number >= 0 && number <= 600) {
+			if (key == "warningholdseconds" && isNumber && number >= 0 && number <= 600) {
 				result.warningHoldSeconds = static_cast<float>(number);
 			} else if (key == "fpsbelow" && isNumber && number >= 1 && number <= 1000) {
 				result.fpsBelow = static_cast<float>(number);

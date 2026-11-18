@@ -58,14 +58,16 @@ extern "C"
 		float        height;
 	};
 
+	// AbyssusLib 2.0 puts all windows into one stack at the top left; x and y
+	// are not used yet (kept for later versions).
 	struct AbyssusWindow
 	{
-		float              x;                // top left corner, pixels
-		float              y;
+		float              x;                // not used in 2.0
+		float              y;                // not used in 2.0
 		const char*        below;            // id of a window of the same source, or nullptr. If that
-		                                     // window shows, this window goes below it (x stays).
+		                                     // window shows, this window goes below it.
 		float              backgroundAlpha;  // 0 to 1
-		float              wrapWidth;        // text wrap, pixels from the left screen edge; 0 = no wrap
+		float              wrapWidth;        // text wrap, pixels from the left window edge; 0 = no wrap
 		const AbyssusItem* items;
 		int                itemCount;
 	};
@@ -125,9 +127,8 @@ namespace abyssus
 	// True if AbyssusLib.dll is loaded and has windows (API version 2 or later).
 	inline bool HasWindows() { return detail::Get().window != nullptr; }
 
-	// Shows a note for a_seconds. All plugins share one note: a new note
-	// replaces the note that shows (the same rule as SkyrimDiagnostics), so a
-	// note is never old.
+	// Adds a note to the notification queue for a_seconds. The queue is at
+	// the bottom of the stack, oldest note at the top.
 	inline void Notify(const char* a_source, const char* a_text, float a_seconds = 5.0f, Level a_level = Level::kInfo)
 	{
 		if (const auto fn = detail::Get().notify)
@@ -145,6 +146,8 @@ namespace abyssus
 	// Shows a window, or changes its content. AbyssusLib copies the data: it
 	// can be released after the call. The window shows until it is changed or
 	// cleared. A null a_window clears it. a_id is unique in a_source.
+	// The stack order: SkyrimDiagnostics, SkyGPS, other plugins (in the order
+	// of their first window or status), notes. A change keeps the place.
 	inline void SetWindow(const char* a_source, const char* a_id, const AbyssusWindow* a_window)
 	{
 		if (const auto fn = detail::Get().window)
@@ -198,9 +201,9 @@ namespace abyssus
 		bool Empty() const { return _items.empty(); }
 
 		// The window data. It is valid until the next change of the builder.
-		AbyssusWindow Make(float a_x, float a_y, float a_backgroundAlpha = 0.6f, float a_wrapWidth = 0.0f, const char* a_below = nullptr) const
+		AbyssusWindow Make(float a_backgroundAlpha = 0.6f, float a_wrapWidth = 0.0f, const char* a_below = nullptr) const
 		{
-			return AbyssusWindow{ a_x, a_y, a_below, a_backgroundAlpha, a_wrapWidth, _items.data(), static_cast<int>(_items.size()) };
+			return AbyssusWindow{ 0.0f, 0.0f, a_below, a_backgroundAlpha, a_wrapWidth, _items.data(), static_cast<int>(_items.size()) };
 		}
 
 	private:

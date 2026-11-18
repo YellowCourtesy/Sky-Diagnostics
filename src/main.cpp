@@ -532,7 +532,7 @@ namespace
 							skydiag::overlay::PostNote(comparison.c_str(), 45.0f);
 						} else if (const auto tasks = SKSE::GetTaskInterface()) {
 							// Without AbyssusLib: the game's notification, on the main thread.
-							tasks->AddTask([text = comparison]() { RE::DebugNotification(text.c_str()); });
+							tasks->AddTask([text = comparison]() { RE::SendHUDMessage::ShowHUDMessage(text.c_str()); });
 						}
 					}
 				}
@@ -713,8 +713,6 @@ namespace
 			// the game's swap chain.
 			if (const auto window = RE::BSGraphics::Renderer::GetCurrentRenderWindow(); window && window->swapChain) {
 				skydiag::overlay::Options options;
-				options.view = g_settings.view;
-				options.toggleKey = g_settings.toggleKey;
 				options.warningHoldSeconds = g_settings.warningHoldSeconds;
 				options.fpsBelow = g_settings.fpsBelow;
 				options.profiler = g_settings.profiler;
@@ -723,7 +721,7 @@ namespace
 				if (skydiag::overlay::Install(window->swapChain, SKYDIAG_VERSION, options)) {
 					SKSE::log::info("Frame measurement is on.");
 					if (abyssus::HasWindows()) {
-						SKSE::log::info("Overlay is on through AbyssusLib (key 0x{:X} changes the view: all data, warnings only, off).", g_settings.toggleKey);
+						SKSE::log::info("Overlay is on through AbyssusLib (F11 in AbyssusLib shows or hides it).");
 					}
 				} else {
 					SKSE::log::error("Frame measurement is off: the Present hook failed.");
@@ -793,8 +791,8 @@ namespace
 			}
 			g_settings = skydiag::LoadSettings(ConfigFile().string());
 			g_layoutText = skydiag::config::Load(ConfigFile()).layout;
-			SKSE::log::info("Settings file {}: view {}, view key 0x{:X}, warning hold {} s, FPS warning below {}, profiler {}, Papyrus sampler {}, engine limits {}, animations {}, stall limit {} s",
-				g_settings.fileFound ? "found" : "not found (defaults are used)", g_settings.view, g_settings.toggleKey, g_settings.warningHoldSeconds,
+			SKSE::log::info("Settings file {}: warning hold {} s, FPS warning below {}, profiler {}, Papyrus sampler {}, engine limits {}, animations {}, stall limit {} s",
+				g_settings.fileFound ? "found" : "not found (defaults are used)", g_settings.warningHoldSeconds,
 				g_settings.fpsBelow, g_settings.profiler ? "on" : "off", g_settings.papyrus ? "on" : "off", g_settings.engineLimits ? "on" : "off",
 				g_settings.animations ? "on" : "off", g_settings.stallSeconds);
 

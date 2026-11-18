@@ -336,8 +336,9 @@ int wmain(int argc, wchar_t** argv)
 			"; comment\n[Overlay]\nView = warnings ; text\nToggleKey = 0x7A\nWarningHoldSeconds = 12.5\n"
 			"[Warnings]\nFpsBelow=45\n[Samplers]\nProfiler = 0\nPapyrus=1\nStallSeconds = 90\nUnknownKey = 3\nToggleKey = bad\n"
 			"Animations = 0\nMemoryByDll = 0\nOverlayTarget = swapchain\nPapyrusTime = 0\n");
-		const bool ok = defaults.view == 0 && defaults.toggleKey == 0x79 && defaults.profiler && defaults.papyrus && defaults.stallSeconds == 30 &&
-		                parsed.view == 1 && parsed.toggleKey == 0x7A && parsed.warningHoldSeconds == 12.5f && parsed.fpsBelow == 45.0f &&
+		// View, ToggleKey and OverlayTarget are old keys: they must be ignored.
+		const bool ok = defaults.profiler && defaults.papyrus && defaults.stallSeconds == 30 &&
+		                parsed.warningHoldSeconds == 12.5f && parsed.fpsBelow == 45.0f &&
 		                !parsed.profiler && parsed.papyrus && parsed.stallSeconds == 90 && defaults.animations && !parsed.animations && defaults.memoryByDll && !parsed.memoryByDll &&
 		                defaults.papyrusTime && !parsed.papyrusTime;
 		std::printf("settings %s\n", ok ? "ok" : "wrong");

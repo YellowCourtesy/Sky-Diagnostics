@@ -50,21 +50,10 @@ namespace skydiag::overlay
 		ID3D11Device*        g_device = nullptr;
 		ID3D11DeviceContext* g_context = nullptr;
 		IDXGIAdapter3*       g_adapter = nullptr;
-		HWND                 g_window = nullptr;
 		bool                 g_ready = false;
 		bool                 g_failed = false;
-		// The view key changes the view: all data and warnings, warnings
-		// only, nothing. A note shows for 10 seconds when the view changes
-		// to "nothing".
-		enum class View
-		{
-			kAll,
-			kWarnings,
-			kOff,
-		};
-		std::atomic<View> g_view{ View::kAll };  // read on all threads, changed on the render thread
-		bool              g_keyWasDown = false;
-		LARGE_INTEGER     g_readyTime{};  // when the first frame was shown
+		// F11 in AbyssusLib shows or hides the windows (Diag in its configurations).
+		LARGE_INTEGER g_readyTime{};  // when the first frame was shown
 
 		LARGE_INTEGER g_frequency{};
 		LARGE_INTEGER g_lastPresentStart{};
@@ -193,11 +182,6 @@ namespace skydiag::overlay
 			}
 			g_device->GetImmediateContext(&g_context);
 
-			DXGI_SWAP_CHAIN_DESC desc{};
-			if (SUCCEEDED(a_swapChain->GetDesc(&desc))) {
-				g_window = desc.OutputWindow;
-			}
-
 			// Video memory data needs IDXGIAdapter3. It is optional.
 			IDXGIDevice* dxgiDevice = nullptr;
 			if (SUCCEEDED(g_device->QueryInterface(__uuidof(IDXGIDevice), reinterpret_cast<void**>(&dxgiDevice))) && dxgiDevice) {
@@ -262,19 +246,6 @@ namespace skydiag::overlay
 			}
 		}
 
-		void UpdateToggle()
-		{
-			const bool down = (GetAsyncKeyState(g_options.toggleKey) & 0x8000) != 0;
-			if (down && !g_keyWasDown && (!g_window || GetForegroundWindow() == g_window)) {
-				const View view = g_view.load();
-				if (view == View::kAll) {
-					g_view = View::kWarnings;
-				} else if (view == View::kWarnings) {
-					g_view = View::kOff;
-					abyssus::Notify(kSource, "Overlay has been turned off", 10.0f);
-				} else {
-					g_view = View::kAll;
-				}
 			}
 			g_keyWasDown = down;
 		}
@@ -393,6 +364,11 @@ namespace skydiag::overlay
 					const char* level = current[i].severity == advisor::Severity::kCritical ? "Critical" :
 					                    current[i].severity == advisor::Severity::kWarning ? "Warning" : "Note";
 					session::Event("%s: %s", level, current[i].text);
+					// And one time a note in the notification queue of AbyssusLib.
+					abyssus::Notify(kSource, current[i].text, 10.0f,
+						current[i].severity == advisor::Severity::kCritical ? abyssus::Level::kError :
+						current[i].severity == advisor::Severity::kWarning  ? abyssus::Level::kWarning :
+						                                                       abyssus::Level::kInfo);
 					// The session report lists the suggestions for this problem type.
 					report::NoteProblem(current[i].id);
 					for (auto& shown : g_shown) {
@@ -425,7 +401,6 @@ namespace skydiag::overlay
 		abyssus::WindowBuilder  g_dataWindow;
 		abyssus::WindowBuilder  g_warningsWindow;
 		abyssus::WindowBuilder* g_out = &g_dataWindow;
-		bool                    g_dataShown = false;      // the data window is sent to AbyssusLib
 		bool                    g_warningsShown = false;  // the warnings window is sent to AbyssusLib
 
 		constexpr AbyssusColor kRed{ 1.0f, 0.35f, 0.3f, 1.0f };
@@ -447,9 +422,8 @@ namespace skydiag::overlay
 			}
 		}
 
-		// The warnings are shown also when the overlay is hidden.
-		// a_below: under the data window.
-		void BuildWarnings(bool a_below)
+		// The warnings window, under the data window.
+		void BuildWarnings()
 		{
 			if (g_warningCount == 0) {
 				ClearWarningsWindow();
@@ -476,7 +450,7 @@ namespace skydiag::overlay
 					g_warningsWindow.NewLine();
 				}
 			}
-			const AbyssusWindow window = g_warningsWindow.Make(10.0f, 10.0f, 0.7f, 560.0f, a_below ? "data" : nullptr);
+			const AbyssusWindow window = g_warningsWindow.Make(0.7f, 560.0f, "data");
 			abyssus::SetWindow(kSource, "warnings", &window);
 			g_warningsShown = true;
 		}
@@ -537,7 +511,7 @@ namespace skydiag::overlay
 			g_dataWindow.Clear();
 			g_out = &g_dataWindow;
 			{
-				Line("SkyrimDiagnostics %s (view key: all data / warnings only / off)", g_version);
+				Line("SkyrimDiagnostics %s (F11: AbyssusLib configurations)", g_version);
 				g_out->Separator();
 
 				// The colors of the frame values are for the settled game
@@ -821,17 +795,8 @@ namespace skydiag::overlay
 					}
 				}
 			}
-			const AbyssusWindow window = g_dataWindow.Make(10.0f, 10.0f, 0.6f);
+			const AbyssusWindow window = g_dataWindow.Make(0.6f);
 			abyssus::SetWindow(kSource, "data", &window);
-			g_dataShown = true;
-		}
-
-		void ClearDataWindow()
-		{
-			if (g_dataShown) {
-				abyssus::ClearWindow(kSource, "data");
-				g_dataShown = false;
-			}
 		}
 
 		HRESULT STDMETHODCALLTYPE HookedPresent(IDXGISwapChain* a_swapChain, UINT a_syncInterval, UINT a_flags)
@@ -882,23 +847,13 @@ namespace skydiag::overlay
 				g_drawCallWindow = start;
 			}
 
-			UpdateToggle();
 			UpdateVideoMemory(start);
 			UpdateWarnings(start);
-			// The windows: AbyssusLib draws them. Without AbyssusLib, no windows.
-			switch (abyssus::HasWindows() ? g_view.load() : View::kOff) {
-			case View::kAll:
+			// The windows: AbyssusLib draws them at the top of its stack, and F11
+			// in AbyssusLib shows or hides them. Without AbyssusLib, no windows.
+			if (abyssus::HasWindows()) {
 				BuildWindow();
-				BuildWarnings(true);
-				break;
-			case View::kWarnings:
-				ClearDataWindow();
-				BuildWarnings(false);
-				break;
-			default:
-				ClearDataWindow();
-				ClearWarningsWindow();
-				break;
+				BuildWarnings();
 			}
 			const std::uint32_t gpuQueue = UpdateGpuQueue();
 
@@ -951,10 +906,8 @@ namespace skydiag::overlay
 
 	void PostNote(const char* a_text, float a_seconds)
 	{
-		// The shared note box of AbyssusLib. Not in the "off" view.
-		if (g_view.load() != View::kOff) {
-			abyssus::Notify(kSource, a_text, a_seconds);
-		}
+		// The notification queue of AbyssusLib.
+		abyssus::Notify(kSource, a_text, a_seconds);
 	}
 
 	void SetEngineState(const EngineState& a_state)
@@ -994,7 +947,6 @@ namespace skydiag::overlay
 	{
 		strncpy_s(g_version, a_version ? a_version : "", _TRUNCATE);
 		g_options = a_options;
-		g_view = a_options.view == 1 ? View::kWarnings : (a_options.view == 2 ? View::kOff : View::kAll);
 		g_layout = layout::Parse(a_options.layoutText ? a_options.layoutText : "");
 		if (!a_swapChain || g_originalPresent.load()) {
 			return false;

@@ -9,8 +9,6 @@ namespace skydiag
 {
 	struct Settings
 	{
-		int   view{ 0 };                  // 0 = all, 1 = warnings only, 2 = off
-		int   toggleKey{ 0x79 };          // Windows virtual key code, 0x79 = F10
 		float warningHoldSeconds{ 30.0f };
 		float fpsBelow{ 57.0f };
 		bool  profiler{ true };

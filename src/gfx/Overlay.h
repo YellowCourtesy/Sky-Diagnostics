@@ -8,8 +8,6 @@ namespace skydiag::overlay
 {
 	struct Options
 	{
-		int   view{ 0 };                  // 0 = all, 1 = warnings only, 2 = off
-		int   toggleKey{ 0x79 };          // Windows virtual key code
 		float warningHoldSeconds{ 30.0f };
 		float fpsBelow{ 57.0f };
 		bool  profiler{ true };
@@ -23,9 +21,8 @@ namespace skydiag::overlay
 	// Call one time. Returns false on failure.
 	bool Install(void* a_swapChain, const char* a_version, const Options& a_options);
 
-	// Shows a text in the note box of AbyssusLib for a_seconds, if the view
-	// is not "off". Safe from all threads. A new note replaces the note
-	// that shows.
+	// Adds a text to the notification queue of AbyssusLib for a_seconds.
+	// Safe from all threads.
 	void PostNote(const char* a_text, float a_seconds);
 
 	// Values that the plugin reads from the game. 0 = not known.
