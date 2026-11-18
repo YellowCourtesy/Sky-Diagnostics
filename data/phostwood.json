@@ -1,0 +1,2580 @@
+{
+ "source": "https://github.com/Phostwood/crash-analyzer",
+ "license": "GPL-3.0",
+ "commit": "6bd9962f680a97c40e8f93eebc2b63db0d4a5cb2",
+ "date": "2026-05-29",
+ "imported": "2026-11-18",
+ "groups": [
+  {
+   "key": "questJournalIssues",
+   "items": [
+    {
+     "text": "Interface/Quest_Journal.swf",
+     "what": "SkyUI journal interface file"
+    },
+    {
+     "text": "Journal_SystemTab",
+     "what": "Quest journal functionality handler"
+    },
+    {
+     "text": "JournalMenu",
+     "what": "Journal menu interface element"
+    }
+   ],
+   "hex": []
+  },
+  {
+   "key": "dragonsEyeMinimapIssues",
+   "items": [
+    {
+     "text": "BSImagespace",
+     "what": "Image space shader issue"
+    },
+    {
+     "text": "NiCamera",
+     "what": "Camera issue"
+    },
+    {
+     "text": "WorldRoot Camera",
+     "what": "World root camera issue"
+    },
+    {
+     "text": "WorldRoot Node",
+     "what": "World root node issue"
+    },
+    {
+     "text": "Block (",
+     "what": "Indicates cell block reference"
+    },
+    {
+     "text": "HUDMenu",
+     "what": "Indicates heads-up display issue"
+    }
+   ],
+   "hex": []
+  },
+  {
+   "key": "nvidiaDriverIssues",
+   "items": [
+    {
+     "text": "nvwgf2umx.dll",
+     "what": "NVIDIA Windows Graphics Foundation driver"
+    },
+    {
+     "text": "nvlddmkm.sys",
+     "what": "NVIDIA Windows Kernel Mode Driver"
+    },
+    {
+     "text": "nvoglv32.dll",
+     "what": "NVIDIA OpenGL driver (32-bit)"
+    },
+    {
+     "text": "nvoglv64.dll",
+     "what": "NVIDIA OpenGL driver (64-bit)"
+    },
+    {
+     "text": "nvwgf2um.dll",
+     "what": "NVIDIA User Mode Driver"
+    },
+    {
+     "text": "nvapi64.dll",
+     "what": "NVIDIA API (64-bit)"
+    },
+    {
+     "text": "nvgpucomp64.dll",
+     "what": "NVIDIA GPU Compute driver (64-bit)"
+    }
+   ],
+   "hex": []
+  },
+  {
+   "key": "amdDriverIssues",
+   "items": [
+    {
+     "text": "amdxx64.dll",
+     "what": "AMD Radeon DirectX 10/11 driver"
+    },
+    {
+     "text": "amdxc64.dll",
+     "what": "AMD shader compiler component"
+    },
+    {
+     "text": "atikmpag.sys",
+     "what": "AMD kernel mode driver (safe mode)"
+    },
+    {
+     "text": "atikmdag.sys",
+     "what": "AMD kernel mode driver"
+    },
+    {
+     "text": "atidxx64.dll",
+     "what": "AMD DirectX shader compiler (64-bit)"
+    },
+    {
+     "text": "amd_ags_x64.dll",
+     "what": "AMD GPU Services library (64-bit)"
+    },
+    {
+     "text": "atig6pxx.dll",
+     "what": "AMD OpenGL driver (64-bit)"
+    }
+   ],
+   "hex": []
+  },
+  {
+   "key": "sseEngineFixesFiles",
+   "items": [
+    {
+     "text": "EngineFixes.dll",
+     "what": "SSE Engine Fixes SKSE plugin"
+    },
+    {
+     "text": "engine_fixes.dll",
+     "what": "SSE Engine Fixes SKSE plugin (alternate)"
+    },
+    {
+     "text": "d3dx9_42.dll",
+     "what": "DirectX 9 runtime library (possibly from SSE Engine Fixes)"
+    },
+    {
+     "text": "tbbmalloc.dll",
+     "what": "Intel Threading Building Blocks memory allocator (likely from SSE Engine Fixes)"
+    },
+    {
+     "text": "tbb.dll",
+     "what": "Intel Threading Building Blocks library (likely from SSE Engine Fixes)"
+    }
+   ],
+   "hex": []
+  },
+  {
+   "key": "vcRuntimeIssues",
+   "items": [
+    {
+     "text": "msvcp100.dll",
+     "what": "Microsoft Visual C++ 2010 Redistributable"
+    },
+    {
+     "text": "msvcp110.dll",
+     "what": "Microsoft Visual C++ 2012 Redistributable"
+    },
+    {
+     "text": "msvcp110_win.dll",
+     "what": "Microsoft Visual C++ 2015 Redistributable"
+    },
+    {
+     "text": "msvcp140.dll",
+     "what": "Microsoft Visual C++ 2015 Redistributable"
+    },
+    {
+     "text": "vcruntime140.dll",
+     "what": "Visual C++ Runtime Library"
+    },
+    {
+     "text": "ucrtbase.dll",
+     "what": "Universal C Runtime Library"
+    }
+   ],
+   "hex": []
+  },
+  {
+   "key": "gamepadIssues",
+   "items": [
+    {
+     "text": "BSWin32GamepadDevice",
+     "what": "Windows gamepad device handler (not always a reliable indicator)"
+    },
+    {
+     "text": "BSPCGamepadDeviceHandler",
+     "what": "PC gamepad device handler"
+    }
+   ],
+   "hex": []
+  },
+  {
+   "key": "keyboardIssues",
+   "items": [
+    {
+     "text": "bswin32keyboarddevice",
+     "what": "Windows keyboard device handler"
+    }
+   ],
+   "hex": []
+  },
+  {
+   "key": "sseFixesIssues",
+   "items": [
+    {
+     "text": "BloodHitEffectBlunt",
+     "what": "Blunt blood impact effect"
+    },
+    {
+     "text": "BloodHitEffectCut",
+     "what": "Cut blood impact effect"
+    },
+    {
+     "text": "BloodSprayAlduinArrowImpact",
+     "what": "Blood spray Alduin arrow impact effect"
+    },
+    {
+     "text": "BloodSprayArrowImpact01",
+     "what": "Blood spray arrow impact effect"
+    },
+    {
+     "text": "BloodSprayHammerImpact01",
+     "what": "Blood spray hammer impact effect"
+    },
+    {
+     "text": "BloodSprayImpact01",
+     "what": "Blood spray general impact effect"
+    },
+    {
+     "text": "BloodSprayUnarmedImpact01",
+     "what": "Blood spray unarmed impact effect"
+    },
+    {
+     "text": "FistBloodSm",
+     "what": "Small blood impact effect for unarmed attacks"
+    },
+    {
+     "text": "FistBloodMed",
+     "what": "Medium blood impact effect for unarmed attacks"
+    },
+    {
+     "text": "FistBloodLg",
+     "what": "Large blood impact effect for unarmed attacks"
+    },
+    {
+     "text": "ImpactArrowDirt01",
+     "what": "Arrow dirt impact effect"
+    },
+    {
+     "text": "ImpactArrowDust01",
+     "what": "Arrow dust impact effect"
+    },
+    {
+     "text": "PierceBone",
+     "what": "Bone piercing effect"
+    },
+    {
+     "text": "FpsFixPlugin.dll",
+     "what": "SSE Fixes plugin file"
+    }
+   ],
+   "hex": []
+  },
+  {
+   "key": "meshIssues",
+   "items": [
+    {
+     "text": "bhkcollisionobject",
+     "what": "Collision object"
+    },
+    {
+     "text": "bhkcompressedmeshshape",
+     "what": "Compressed mesh shape"
+    },
+    {
+     "text": "bsbloodsplattershader",
+     "what": "Blood splatter shader"
+    },
+    {
+     "text": "bsdynamictrishape",
+     "what": "Dynamic triangle shape"
+    },
+    {
+     "text": "bseffectshaderproperty",
+     "what": "Effect shader property"
+    },
+    {
+     "text": "bsfadenode",
+     "what": "BSFadeNode"
+    },
+    {
+     "text": "bsinvmarker",
+     "what": "Inventory marker"
+    },
+    {
+     "text": "bslightingshaderproperty",
+     "what": "Lighting shader property"
+    },
+    {
+     "text": "bslodtrishape",
+     "what": "LOD triangle shape"
+    },
+    {
+     "text": "bsmultiboundnode",
+     "what": "Multi-bound node"
+    },
+    {
+     "text": "bsmultiindextrishape",
+     "what": "Multi-index triangle shape"
+    },
+    {
+     "text": "bsordereddynamictrishape",
+     "what": "Ordered dynamic triangle shape"
+    },
+    {
+     "text": "bssegmentedtrishape",
+     "what": "Segmented triangle shape"
+    },
+    {
+     "text": "bssubindextrishape",
+     "what": "Subindex triangle shape"
+    },
+    {
+     "text": "bstrishape",
+     "what": "BSTriShape node"
+    },
+    {
+     "text": "nigeometry",
+     "what": "Geometry data"
+    },
+    {
+     "text": "nimaterialproperty",
+     "what": "Material property"
+    },
+    {
+     "text": "ninode",
+     "what": "NiNode"
+    },
+    {
+     "text": "niskininstance",
+     "what": "Skin instance"
+    },
+    {
+     "text": "nistringextradata",
+     "what": "String extra data"
+    },
+    {
+     "text": "nitexturetransformcontroller",
+     "what": "Texture transform controller"
+    },
+    {
+     "text": "nitribasedgeom",
+     "what": "Triangle-based geometry"
+    },
+    {
+     "text": "nitrishape",
+     "what": "NiTriShape node"
+    },
+    {
+     "text": "nitristrips",
+     "what": "NiTriStrips node"
+    },
+    {
+     "text": "trishape",
+     "what": "Triangle shape in mesh"
+    },
+    {
+     "text": ".tri",
+     "what": "Mesh file for 3D wireframe"
+    },
+    {
+     "text": ".nif",
+     "what": "Mesh file for 3D wireframe"
+    },
+    {
+     "text": ".nif.dm",
+     "what": "Mesh file for 3D wireframe"
+    },
+    {
+     "text": ".bto",
+     "what": "Bethesda mesh optimization file"
+    }
+   ],
+   "hex": [
+    {
+     "hex": "132BEF",
+     "what": "head mesh issue"
+    },
+    {
+     "hex": "12FDD00",
+     "what": "corrupted NIF file"
+    },
+    {
+     "hex": "12F5590",
+     "what": "mesh loading or rendering issue (often FaceGen/NPC faces, but can be other meshes)"
+    }
+   ]
+  },
+  {
+   "key": "textureIssues",
+   "items": [
+    {
+     "text": "bsshadertextureset",
+     "what": "Shader texture set problem"
+    },
+    {
+     "text": "nialphaproperty",
+     "what": "Alpha property issue"
+    },
+    {
+     "text": "nisourcetexture",
+     "what": "Source texture loading or reference issue"
+    },
+    {
+     "text": "compressedarchivestream",
+     "what": "Compressed texture stream error"
+    },
+    {
+     "text": "texture",
+     "what": "General texture-related problem"
+    },
+    {
+     "text": ".dds",
+     "what": "DirectDraw Surface texture file"
+    },
+    {
+     "text": ".tga",
+     "what": "Targa format texture file"
+    },
+    {
+     "text": ".bmp",
+     "what": "Bitmap texture file"
+    },
+    {
+     "text": ".btr",
+     "what": "Bethesda texture reference file"
+    },
+    {
+     "text": "Texture not found",
+     "what": "Potentially missing texture asset(s)"
+    }
+   ],
+   "hex": []
+  },
+  {
+   "key": "animationIssues",
+   "items": [
+    {
+     "text": ".hkx",
+     "what": "Havok animation file"
+    },
+    {
+     "text": "ahkpCharacterRigidBody",
+     "what": "Havok character rigid body physics"
+    },
+    {
+     "text": "animation",
+     "what": "General animation-related (lower-confidence indicator)"
+    },
+    {
+     "text": "animationgraph",
+     "what": "Animation graph"
+    },
+    {
+     "text": "bhkCharRigidBodyController",
+     "what": "Bethesda character rigid body controller"
+    },
+    {
+     "text": "BSAnimationGraphManager",
+     "what": "Bethesda animation graph management system"
+    },
+    {
+     "text": "bshkbanimationgraph",
+     "what": "Bethesda Havok animation graph"
+    },
+    {
+     "text": "hkpSimpleConstraintContactMgr",
+     "what": "Havok constraint contact manager"
+    }
+   ],
+   "hex": [
+    {
+     "hex": "B02235",
+     "what": "suspected animation indicator"
+    }
+   ]
+  },
+  {
+   "key": "animationLoaderIssues",
+   "items": [
+    {
+     "text": ".hkb",
+     "what": "Havok behavior file"
+    },
+    {
+     "text": ".hkx",
+     "what": "Havok animation file"
+    },
+    {
+     "text": "0_master.hkb",
+     "what": "Master behavior file"
+    },
+    {
+     "text": "67B88B",
+     "what": "suspected animation loader, hexcode indicator"
+    },
+    {
+     "text": "behavior",
+     "what": "Generic behavior file reference (lower-confidence indicator)"
+    },
+    {
+     "text": "bshkbanimationgraph",
+     "what": "Bethesda Havok animation graph"
+    },
+    {
+     "text": "BShkbAnimationGraph",
+     "what": "Bethesda Havok animation graph system"
+    },
+    {
+     "text": "dynamicanimationreplacer.dll",
+     "what": "DAR loader detected"
+    },
+    {
+     "text": "dynamicanimationreplacer.ini",
+     "what": "DAR configuration file"
+    },
+    {
+     "text": "hkbBehaviorGraph",
+     "what": "Havok behavior graph system"
+    },
+    {
+     "text": "hkbCharacter",
+     "what": "Havok behavior character controller"
+    },
+    {
+     "text": "hkbClipGenerator",
+     "what": "Havok behavior clip generator"
+    },
+    {
+     "text": "hkbclipgenerator",
+     "what": "Havok clip generator"
+    },
+    {
+     "text": "hkbehaviorgraph",
+     "what": "Havok behavior graph"
+    },
+    {
+     "text": "hkbStateMachine",
+     "what": "Havok behavior state machine"
+    },
+    {
+     "text": "hkbvariablebindingset",
+     "what": "Havok variable binding set"
+    },
+    {
+     "text": "openanimationreplacer.dll",
+     "what": "OAR loader detected"
+    },
+    {
+     "text": "openanimationreplacer.pdb",
+     "what": "OAR debug symbols"
+    }
+   ],
+   "hex": []
+  },
+  {
+   "key": "memoryIssues",
+   "items": [
+    {
+     "text": "memory allocation failed",
+     "what": "Failed to allocate memory"
+    },
+    {
+     "text": "out of memory",
+     "what": "System ran out of memory"
+    },
+    {
+     "text": "heap corruption",
+     "what": "Memory heap corruption detected"
+    },
+    {
+     "text": "bad_alloc",
+     "what": "Memory allocation failure"
+    },
+    {
+     "text": "no_alloc",
+     "what": "Memory allocation not possible"
+    },
+    {
+     "text": "tbbmalloc.dll",
+     "what": "Intel Threading Building Blocks Memory Allocator (likely from SSE Engine Fixes - Part 2 ... less likely culprit)"
+    },
+    {
+     "text": "virtual memory",
+     "what": "Virtual memory management issue"
+    },
+    {
+     "text": "memory leak",
+     "what": "Potential memory leak detected"
+    },
+    {
+     "text": "stack overflow",
+     "what": "Stack memory overflow"
+    },
+    {
+     "text": "buffer overflow",
+     "what": "Buffer memory overflow"
+    },
+    {
+     "text": "memory fragmentation",
+     "what": "Memory fragmentation issue"
+    }
+   ],
+   "hex": [
+    {
+     "hex": "D6DDDA",
+     "what": "VRAM/visual memory allocation failure"
+    },
+    {
+     "hex": "0xc0000005",
+     "what": "Windows memory access violation"
+    }
+   ]
+  },
+  {
+   "key": "lotdKaragasTowerDoorCrashIssues",
+   "items": [
+    {
+     "text": "04D26E7",
+     "what": "First-line hexcode for Legend of the Dragonborn's Karagas' Tower Door Crash"
+    },
+    {
+     "text": "LegacyoftheDragonborn.esm",
+     "what": "Primary module with the crash-prone Karagas' Tower door"
+    },
+    {
+     "text": "LegacyoftheDragonborn0.esp",
+     "what": "Additional plugin contributing to the crash"
+    },
+    {
+     "text": "Karagas",
+     "what": "Specific location related to the crash"
+    },
+    {
+     "text": "MovementMessageActivateDoor",
+     "what": "Script or message related to door activation causing the crash"
+    },
+    {
+     "text": "Door (29)",
+     "what": "Reference to the door FormID involved in the crash"
+    },
+    {
+     "text": "0006597B",
+     "what": "FormID for the crashing door in Karagas' Tower"
+    }
+   ],
+   "hex": [
+    {
+     "hex": "04D26E7",
+     "what": "First-line error code for Legend of the Dragonborn's Karagas' Tower Door Crash"
+    }
+   ]
+  },
+  {
+   "key": "pathingAndNavMeshIssues",
+   "items": [
+    {
+     "text": "AiNavigation",
+     "what": "AI navigation issue"
+    },
+    {
+     "text": "AutoRegisterPathBuilderFactory",
+     "what": "Path building system issue"
+    },
+    {
+     "text": "BGSProcedureFollowExecState",
+     "what": "May indicate a follower having nav issues"
+    },
+    {
+     "text": "BSPathBuilder",
+     "what": "Base path building system error"
+    },
+    {
+     "text": "BSPrecomputedNavmeshInfoSearch",
+     "what": "Precomputed navigation mesh information search error"
+    },
+    {
+     "text": "CombatNavmeshSearchT",
+     "what": "Combat-specific navigation mesh searching issue"
+    },
+    {
+     "text": "MovementControllerNPC",
+     "what": "May indicate an NPC having nav issues"
+    },
+    {
+     "text": "MovementPathManagerArbiter",
+     "what": "Movement path management issue"
+    },
+    {
+     "text": "NavMeshInfoArea",
+     "what": "NavMesh info area problem"
+    },
+    {
+     "text": "NavMeshInfoMap",
+     "what": "Navigation mesh information mapping error"
+    },
+    {
+     "text": "NavMeshObstacleManager",
+     "what": "Navigation mesh obstacle handling issue"
+    },
+    {
+     "text": "PathFinding",
+     "what": "Path finding issue"
+    },
+    {
+     "text": "PathingCell",
+     "what": "Cell-based pathing error"
+    },
+    {
+     "text": "PathingDoor",
+     "what": "Door-related pathing issue"
+    },
+    {
+     "text": "PathingLockData",
+     "what": "Thread synchronization or concurrency issue during pathing data access"
+    },
+    {
+     "text": "PathingRequest",
+     "what": "Pathing request failure"
+    },
+    {
+     "text": "PathingTaskData",
+     "what": "Pathing task data error"
+    },
+    {
+     "text": "SIC_WERoad07",
+     "what": "Known issue with Skyrim Immersive Creatures mounted NPCs"
+    },
+    {
+     "text": "PathManagerClient",
+     "what": "Path manager client-side error"
+    },
+    {
+     "text": "NavMeshGenerationProperties",
+     "what": "NavMesh generation property issue"
+    },
+    {
+     "text": "PathingCoverLocation",
+     "what": "Cover point pathing error"
+    },
+    {
+     "text": "NavMeshPortal",
+     "what": "Navigation mesh portal connection issue"
+    },
+    {
+     "text": "DetourNavMesh",
+     "what": "Detour navigation mesh system error"
+    },
+    {
+     "text": "PathingStreamManager",
+     "what": "Path streaming management failure"
+    },
+    {
+     "text": "NavmeshProcessing",
+     "what": "Navigation mesh processing error"
+    },
+    {
+     "text": "PathSmoothing",
+     "what": "Path smoothing calculation issue"
+    },
+    {
+     "text": "Path Following Movement State",
+     "what": "Path following movement state error"
+    },
+    {
+     "text": "MovementPostUpdateArbiter",
+     "what": "Movement post-update arbiter issue"
+    },
+    {
+     "text": "MovementPlannerAgentWarp",
+     "what": "Movement planner agent warp error"
+    }
+   ],
+   "hex": []
+  },
+  {
+   "key": "enbShaderLightingIssues",
+   "items": [
+    {
+     "text": "12FDCC0",
+     "what": "Unknown BSShader function offset - may indicate shader-related instability"
+    },
+    {
+     "text": "AmbientColor",
+     "what": "Ambient light color calculations - could relate to lighting template conflicts"
+    },
+    {
+     "text": "AmbientOcclusion",
+     "what": "AO processing - potential issues with shader implementations"
+    },
+    {
+     "text": "ApplyGameColorCorrection",
+     "what": "Color correction pipeline - ENB/SweetFX interference possible"
+    },
+    {
+     "text": "BGSDecalNode",
+     "what": "Decal rendering - possible shader/texture interaction issues"
+    },
+    {
+     "text": "BSMultiBoundRoom",
+     "what": "Multi-bound room rendering - reportedly reliable indicator of cell transition/interior lighting issues"
+    },
+    {
+     "text": "Boris Vorontsov",
+     "what": "ENB developer references - may appear in error contexts"
+    },
+    {
+     "text": "BSDynamicTriShape",
+     "what": "Complex geometry rendering - potential texture/shader overload"
+    },
+    {
+     "text": "BSEffectShaderProperty",
+     "what": "Effect shaders - possible issues with magic/weather FX"
+    },
+    {
+     "text": "BSImagespaceShader",
+     "what": "Post-processing effects - ENB/Reshade conflicts possible"
+    },
+    {
+     "text": "BSImagespaceShaderAlphaBlend",
+     "what": "Alpha blending operations - may indicate screen-space effect issues"
+    },
+    {
+     "text": "BSLightingShader",
+     "what": "Core lighting system - could indicate conflicts with lighting mods/ENB"
+    },
+    {
+     "text": "BSLightingShaderMaterialBase",
+     "what": "Material properties - potential mesh/shader mismatches"
+    },
+    {
+     "text": "BSLightingShaderMaterialEnvmap",
+     "what": "Reflective surfaces - environment mapping issues possible"
+    },
+    {
+     "text": "BSLightingShaderProperty",
+     "what": "Material lighting data - texture/mesh compatibility concerns"
+    },
+    {
+     "text": "BSShader::",
+     "what": "Engine shader operations - ENB/shader mod conflicts possible"
+    },
+    {
+     "text": "BSShaderAccumulator",
+     "what": "Shader buffer management - potential lighting overload"
+    },
+    {
+     "text": "BSShaderTextureSet",
+     "what": "Texture configurations - missing/incompatible textures possible"
+    },
+    {
+     "text": "BSTextureSet",
+     "what": "Texture set handling - potential material definition errors"
+    },
+    {
+     "text": "BSUtilityShader",
+     "what": "Utility shaders - particle/effect processing"
+    },
+    {
+     "text": "CellLighting",
+     "what": "Localized lighting - potential cell-specific conflicts"
+    },
+    {
+     "text": "CommunityShaders.dll",
+     "what": "Community Shaders core - installation/version issues possible"
+    },
+    {
+     "text": "CSLighting",
+     "what": "Custom lighting features - may conflict with ENB/other shaders"
+    },
+    {
+     "text": "CSRendering",
+     "what": "Rendering pipeline - potential mod compatibility issues"
+    },
+    {
+     "text": "CSShader",
+     "what": "Shader extensions - possible Community Shaders-related instability"
+    },
+    {
+     "text": "d3d11.dll",
+     "what": "DirectX 11 interface - Graphics mod hooking issues possible"
+    },
+    {
+     "text": "d3d9.dll",
+     "what": "DirectX 9 interface - Graphics mod hooking issues possible"
+    },
+    {
+     "text": "d3dcompiler_47.dll",
+     "what": "Shader compilation - invalid/mismatched shaders suspected"
+    },
+    {
+     "text": "DeferredLighting",
+     "what": "Lighting pipeline - potential rendering step conflicts"
+    },
+    {
+     "text": "DirectionalLight",
+     "what": "Sun/moon lighting - shadow/ENB adaptation issues possible"
+    },
+    {
+     "text": "DXGI.dll",
+     "what": "Graphics interface - potential driver/ENB compatibility issues"
+    },
+    {
+     "text": "DXGI_ERROR_DEVICE_REMOVED",
+     "what": "GPU disconnect - could indicate VRAM overutilization"
+    },
+    {
+     "text": "ELFX - Exteriors.esp",
+     "what": "ELFX exterior module - lighting mod conflict possible"
+    },
+    {
+     "text": "ELFXEnhancer.esp",
+     "what": "ELFX addon - potential interior lighting conflicts"
+    },
+    {
+     "text": "ENB Reference",
+     "what": "ENB mentions - general indicator of ENB involvement"
+    },
+    {
+     "text": "ENBEffect.fx",
+     "what": "Custom shaders - potential syntax/version errors"
+    },
+    {
+     "text": "enbhelper.dll",
+     "what": "ENB extension - possible version incompatibility"
+    },
+    {
+     "text": "enbhost.exe",
+     "what": "ENB memory process - potential memory management issues"
+    },
+    {
+     "text": "enblocal.ini",
+     "what": "ENB configuration - possible settings mismatch"
+    },
+    {
+     "text": "enbseries.dll",
+     "what": "ENB core - potential installation/version problems"
+    },
+    {
+     "text": "enbseries.ini",
+     "what": "ENB settings - potential rendering configuration issues"
+    },
+    {
+     "text": "ENBShaderCache",
+     "what": "Shader caching - corruption/version mismatch possible"
+    },
+    {
+     "text": "ENBSky",
+     "what": "Sky rendering - weather/lighting mod conflicts possible"
+    },
+    {
+     "text": "ENBWaterShader",
+     "what": "Water effects - potential compatibility issues"
+    },
+    {
+     "text": "ImageSpace",
+     "what": "Post-processing - ENB/Reshade interference possible"
+    },
+    {
+     "text": "LightingTemplate",
+     "what": "Environment lighting - potential cell/mod compatibility issues"
+    },
+    {
+     "text": "Lux Via.esp",
+     "what": "Lux roads module - exterior lighting conflicts possible"
+    },
+    {
+     "text": "Lux.esp",
+     "what": "Lux core - potential interior lighting system conflicts"
+    },
+    {
+     "text": "NiAVObject",
+     "what": "Scene objects - rendering property conflicts possible"
+    },
+    {
+     "text": "NiNode",
+     "what": "Scene graph - potential rendering hierarchy issues"
+    },
+    {
+     "text": "PixelShader",
+     "what": "Shader processing - compilation/runtime errors possible"
+    },
+    {
+     "text": "Refraction",
+     "what": "Light bending - potential transparency/shader issues"
+    },
+    {
+     "text": "RenderTarget",
+     "what": "Buffer management - ENB/effects conflicts possible"
+    },
+    {
+     "text": "ShaderPipeline",
+     "what": "Rendering workflow - potential mod/ENB step conflicts"
+    },
+    {
+     "text": "ShadowSceneNode",
+     "what": "Shadow rendering - potential casting/receiving conflicts"
+    },
+    {
+     "text": "SkyShader",
+     "what": "Sky rendering - weather/ENB sky conflicts possible"
+    },
+    {
+     "text": "VertexShader",
+     "what": "Geometry processing - compilation/runtime errors possible"
+    },
+    {
+     "text": "WaterShader",
+     "what": "Water rendering - ENB/water mod conflicts possible"
+    },
+    {
+     "text": "WindowShadersRT.esp",
+     "what": "Window effects - potential shader/texture conflicts"
+    },
+    {
+     "text": "BSFadeNode",
+     "what": "Object fade transitions - possible exterior lighting/LOD conflicts"
+    },
+    {
+     "text": "BSXFlags",
+     "what": "Shader property flags - snow/wetness material conflicts possible"
+    },
+    {
+     "text": "BSWaterShaderMaterial",
+     "what": "Water material properties - conflicts with water shader mods likely"
+    },
+    {
+     "text": "SubSurfaceScattering",
+     "what": "Subsurface effects - skin/object translucency shader conflicts (ENB/character mods)"
+    },
+    {
+     "text": "VolumetricLighting",
+     "what": "Volumetric light rendering - ENB godray/lighting mod issues suspected"
+    },
+    {
+     "text": "ShadowMap",
+     "what": "Shadow map handling - resolution/rendering compatibility issues"
+    },
+    {
+     "text": "RenderTargetSize",
+     "what": "Render target dimensions - ENB upscaling/downsampling conflicts"
+    },
+    {
+     "text": "TextureBlend",
+     "what": "Texture blending modes - parallax/terrain material incompatibilities"
+    },
+    {
+     "text": "ENBLight",
+     "what": "ENB light sources - conflicts with custom lighting placements"
+    },
+    {
+     "text": "ComplexFire",
+     "what": "Complex fire effects - particle lighting/shader overload"
+    }
+   ],
+   "hex": []
+  }
+ ],
+ "dllVersions": [
+  {
+   "dll": "ConsoleUtilSSE.dll",
+   "version": "1.4.0",
+   "maxGame": "1.6.1129.9999",
+   "ignoreBelow": "1.3.2",
+   "recommended": "1.5.1",
+   "mod": "ConsoleUtilSSE NG",
+   "url": "https://www.nexusmods.com/skyrimspecialedition/mods/76649",
+   "note": "NOTE: this mod completely replaces the old ConsoleUtil mod. Be sure to disable the old one. ⚠️NOTE: If you are using ConsoleUtil Extended version 1.0.1, it is compatible, but shows up in crash logs exactly like an old versions of Console Util SSE"
+  },
+  {
+   "dll": "QuickLootRE.dll",
+   "version": "2.15",
+   "maxGame": "1.6.1129.9999",
+   "ignoreBelow": "",
+   "recommended": "2.0.0",
+   "mod": "QuickLoot IE - A QuickLoot EE Fork",
+   "url": "https://www.nexusmods.com/skyrimspecialedition/mods/120075",
+   "note": "NOTE: this mod completely replaces the old QuickLoot RE. Be sure to disable the old one."
+  },
+  {
+   "dll": "po3_PapyrusExtender.dll",
+   "version": "5.6.1.1",
+   "maxGame": "1.6.1129.9999",
+   "ignoreBelow": "",
+   "recommended": "5.10.0",
+   "mod": "powerofthree's Papyrus Extender",
+   "url": "https://www.nexusmods.com/skyrimspecialedition/mods/22854",
+   "note": ""
+  },
+  {
+   "dll": "DynamicAnimationReplacer.dll",
+   "version": "1.1.3",
+   "maxGame": "1.6.1129.9999",
+   "ignoreBelow": "",
+   "recommended": "2.3.6",
+   "mod": "Open Animation Replacer (OAR)",
+   "url": "https://www.nexusmods.com/skyrimspecialedition/mods/92109",
+   "note": "NOTE: this mod is a fully-backwards-compatible drop-in-replacement for the old Dynamic Animation Replacer (DAR). Be sure to disable the old one. While neither mod is likely to be the cause of crashes, OAR is a worthy upgrade."
+  },
+  {
+   "dll": "CombatMusicFix_NG.dll",
+   "version": "1.0.0",
+   "maxGame": "1.6.1129.9999",
+   "ignoreBelow": "",
+   "recommended": "1.1.0",
+   "mod": "Combat Music Fix NG Updated",
+   "url": "https://www.nexusmods.com/skyrimspecialedition/mods/110459",
+   "note": "NOTE: this mod completely replaces the old Combat Music Fix mod. Be sure to disable the old one."
+  },
+  {
+   "dll": "CombatMusicFix.dll",
+   "version": "1.0.1",
+   "maxGame": "1.6.1129.9999",
+   "ignoreBelow": "",
+   "recommended": "1.1.0",
+   "mod": "Combat Music Fix NG Updated",
+   "url": "https://www.nexusmods.com/skyrimspecialedition/mods/110459",
+   "note": "NOTE: this mod completely replaces the old Combat Music Fix mod. Be sure to disable the old one."
+  },
+  {
+   "dll": "MCMHelper.dll",
+   "version": "1.4.0",
+   "maxGame": "1.6.1129.9999",
+   "ignoreBelow": "",
+   "recommended": "1.5.0",
+   "mod": "MCM Helper",
+   "url": "https://nexusmods.com/skyrimspecialedition/mods/53000",
+   "note": ""
+  },
+  {
+   "dll": "QuickLootEE.dll",
+   "version": "1.1",
+   "maxGame": "1.6.1129.9999",
+   "ignoreBelow": "",
+   "recommended": "2.0.0",
+   "mod": "QuickLoot IE - A QuickLoot EE Fork",
+   "url": "https://www.nexusmods.com/skyrimspecialedition/mods/120075",
+   "note": "NOTE: this mod completely replaces the old QuickLoot EE. Be sure to disable the old one."
+  },
+  {
+   "dll": "SkyClimb.dll",
+   "version": "1.1.1",
+   "maxGame": "1.6.1129.9999",
+   "ignoreBelow": "",
+   "recommended": "1.0.0",
+   "mod": "SkyClimb 1.6.1170 Fix",
+   "url": "https://www.nexusmods.com/skyrimspecialedition/mods/124203",
+   "note": "NOTE: place after the original in your load order. Or alternately (recommended) switch to SkyParkour."
+  }
+ ],
+ "explanations": [
+  {
+   "file": "_nvngx.dll",
+   "what": "NVIDIA NGX Runtime Library"
+  },
+  {
+   "file": "a0d789patch.dll",
+   "what": "recommended bug fix"
+  },
+  {
+   "file": "aero.esl",
+   "what": "Abyssal Wind Magic mod"
+  },
+  {
+   "file": "achievements.dll",
+   "what": "Achievements Mods Enabler SKSE plugin"
+  },
+  {
+   "file": "addresslibrarysse.dll",
+   "what": "Address Library for SKSE Plugins"
+  },
+  {
+   "file": "amdxc64.dll",
+   "what": "AMD graphics component"
+  },
+  {
+   "file": "amdxx64.dll",
+   "what": "AMD graphics component"
+  },
+  {
+   "file": "animationdatasystem.dll",
+   "what": "Animation Data System SKSE plugin"
+  },
+  {
+   "file": "animationmotion.dll",
+   "what": "Animation Motion Revolution SKSE plugin"
+  },
+  {
+   "file": "antimalware_provider64.dll",
+   "what": "antimalware provider"
+  },
+  {
+   "file": "applicationtargetedfeaturedatabase.dll",
+   "what": "feature database - MS Windows"
+  },
+  {
+   "file": "asm.plugin.audiodevprops2.dll",
+   "what": "Nahimic audio component"
+  },
+  {
+   "file": "atcuf64.dll",
+   "what": "Bitdefender Active Threat Control Userland API"
+  },
+  {
+   "file": "atidxx64.dll",
+   "what": "AMD graphics component"
+  },
+  {
+   "file": "atiumd6a.dll",
+   "what": "AMD graphics component"
+  },
+  {
+   "file": "atiuxp64.dll",
+   "what": "AMD graphics component"
+  },
+  {
+   "file": "autohdr64.addon",
+   "what": "AutoHDR Addon for ReShade"
+  },
+  {
+   "file": "avamsi.dll",
+   "what": "Avira Antimalware Scan Interface ... also used by Surfshark"
+  },
+  {
+   "file": "avamsicli.dll",
+   "what": "Avira Antimalware Client Interface"
+  },
+  {
+   "file": "avast.dll",
+   "what": "Avast Antivirus Core Component"
+  },
+  {
+   "file": "avgui.dll",
+   "what": "AVG Antivirus User Interface"
+  },
+  {
+   "file": "backportedeslsupport.dll",
+   "what": "aka BEES 🐝- SKSE plugin"
+  },
+  {
+   "file": "bdcore.dll",
+   "what": "Bitdefender Core Antivirus Module"
+  },
+  {
+   "file": "bdhkm64.dll",
+   "what": "Bitdefender Hooking Module - antivirus"
+  },
+  {
+   "file": "bink2w64.dll",
+   "what": "Bink Video codec - newer version"
+  },
+  {
+   "file": "binkw64.dll",
+   "what": "Bink Video codec for in-game videos"
+  },
+  {
+   "file": "bsa.dll",
+   "what": "BSA handling library for mod managers"
+  },
+  {
+   "file": "bufferpatch.dll",
+   "what": "SSE Display Tweaks SKSE plugin"
+  },
+  {
+   "file": "categorizedmodmenu.dll",
+   "what": "Categorized Favorite Menu SKSE plugin"
+  },
+  {
+   "file": "cbp.dll",
+   "what": "Collision Body Physics ... less likely culprit"
+  },
+  {
+   "file": "ccbgssse018-shadowrend.esl",
+   "what": "Indicator for potential Shadowrend issue?"
+  },
+  {
+   "file": "cef.dll",
+   "what": "Chromium Embedded Framework - used by some UI mods"
+  },
+  {
+   "file": "chargen.dll",
+   "what": "RaceMenu character generation plugin"
+  },
+  {
+   "file": "clib64.dll",
+   "what": "CommonLib shared library for SKSE plugins"
+  },
+  {
+   "file": "com_antivirus.dll",
+   "what": "Comodo Antivirus Component"
+  },
+  {
+   "file": "comctl32.dll",
+   "what": "Common Controls Library - MS Windows"
+  },
+  {
+   "file": "comdlg32.dll",
+   "what": "Common Dialog Box Library - MS Windows"
+  },
+  {
+   "file": "compstui.dll",
+   "what": "Common Property Sheet UI - MS Windows printing"
+  },
+  {
+   "file": "con_bypass.dll",
+   "what": "Console Bypass SKSE plugin"
+  },
+  {
+   "file": "concrt140.dll",
+   "what": "Concurrency Runtime Library - MS Windows"
+  },
+  {
+   "file": "console.dll",
+   "what": "Enhanced Console Commands SKSE plugin"
+  },
+  {
+   "file": "crashfixes.dll",
+   "what": "Various crash fixes for Skyrim"
+  },
+  {
+   "file": "crashlogger.dll",
+   "what": "Crash Logger SSE plugin"
+  },
+  {
+   "file": "d3d10.dll",
+   "what": "Direct3D 10 Runtime - MS Windows graphics"
+  },
+  {
+   "file": "d3d10_1.dll",
+   "what": "Direct3D 10.1 Runtime - MS Windows graphics"
+  },
+  {
+   "file": "d3d10_1core.dll",
+   "what": "Direct3D 10.1 Core Runtime - MS Windows graphics"
+  },
+  {
+   "file": "d3d10core.dll",
+   "what": "Direct3D 10 Core Runtime - MS Windows graphics"
+  },
+  {
+   "file": "d3d10warp.dll",
+   "what": "⚠️CPU emulation of GPU - MS Windows graphics"
+  },
+  {
+   "file": "d3d11.dll",
+   "what": "Direct3D 11 - MS Windows graphics, frequent ENB indicator"
+  },
+  {
+   "file": "d3d11on12.dll",
+   "what": "Direct3D 11On12 Runtime - MS Windows graphics"
+  },
+  {
+   "file": "d3d12core.dll",
+   "what": "Direct3D 12 Core Runtime - MS Windows graphics"
+  },
+  {
+   "file": "d3dcompiler_42.dll",
+   "what": "DirectX HLSL Compiler - MS Windows graphics"
+  },
+  {
+   "file": "d3dcompiler_46e.dll",
+   "what": "ENB shader compiler"
+  },
+  {
+   "file": "d3dcompiler_47.dll",
+   "what": "DirectX Shader Compiler - used by some graphics mods"
+  },
+  {
+   "file": "d3dscache.dll",
+   "what": "Direct3D Shader Cache - MS Windows graphics"
+  },
+  {
+   "file": "d3dx10_42.dll",
+   "what": "DirectX 10.1 Extensions - MS Windows graphics"
+  },
+  {
+   "file": "d3dx11_42.dll",
+   "what": "Direct3D 11 Extensions - MS Windows graphics"
+  },
+  {
+   "file": "d3dx9_42.dll",
+   "what": "DirectX 9 library - likely from SSE Engine Fixes - Part 2 ... less likely culprit"
+  },
+  {
+   "file": "d3dx9_43.dll",
+   "what": "Direct3D 9 Extensions - MS Windows graphics"
+  },
+  {
+   "file": "dbsksefunctions.dll",
+   "what": "Dylbill's Papyrus Functions SKSE plugin"
+  },
+  {
+   "file": "detoured.dll",
+   "what": "Microsoft Detours Library - Windows"
+  },
+  {
+   "file": "deviceaccess.dll",
+   "what": "Device Broker And Policy COM Server - MS Windows"
+  },
+  {
+   "file": "dinput8.dll",
+   "what": "DirectInput library - used for input handling"
+  },
+  {
+   "file": "disco_gravelordpatch.esp",
+   "what": "recommended bug fix"
+  },
+  {
+   "file": "disco_odingravelordpatchb.esp",
+   "what": "recommended bug fix"
+  },
+  {
+   "file": "discordhook64.dll",
+   "what": "Discord Overlay Component"
+  },
+  {
+   "file": "dkaf.dll",
+   "what": "Skyrim modding tool for binding keys to animations"
+  },
+  {
+   "file": "dmenu.dll",
+   "what": "Dynamic Menu for Skyrim SE Mods - MS Windows"
+  },
+  {
+   "file": "dsound.dll",
+   "what": "DirectSound library for audio processing"
+  },
+  {
+   "file": "dxcompiler.dll",
+   "what": "Direct3D Shader Compiler - MS Windows"
+  },
+  {
+   "file": "dxgi.dll",
+   "what": "DirectX Graphics Infrastructure - part of Windows, but altered by some mods"
+  },
+  {
+   "file": "dxil.dll",
+   "what": "DirectX Intermediate Language Library - MS Windows"
+  },
+  {
+   "file": "dxilconv.dll",
+   "what": "DXBC to DXIL Converter - MS Windows"
+  },
+  {
+   "file": "dynamicanimationreplacer.dll",
+   "what": "aka DAR - older animation replacer mod"
+  },
+  {
+   "file": "eamsi.dll",
+   "what": "ESET Antimalware Scan Interface"
+  },
+  {
+   "file": "edputil.dll",
+   "what": "EDP Utility Library - MS Windows"
+  },
+  {
+   "file": "egui.dll",
+   "what": "ESET Graphical User Interface - antivirus"
+  },
+  {
+   "file": "enb123.dll",
+   "what": "Older version of ENB graphics mod"
+  },
+  {
+   "file": "enbhelper.dll",
+   "what": "ENB helper library"
+  },
+  {
+   "file": "engine_fixes.dll",
+   "what": "SSE Engine Fixes SKSE plugin ... less likely culprit"
+  },
+  {
+   "file": "enginefixes.dll",
+   "what": "SSE Engine Fixes SKSE plugin ... less likely culprit"
+  },
+  {
+   "file": "equippablekittails.dll",
+   "what": "Equippable Khajiit Tails SKSE plugin"
+  },
+  {
+   "file": "f4se_1_10_163.dll",
+   "what": "Fallout 4 Script Extender - mistakenly present"
+  },
+  {
+   "file": "ffx_backend_dx12_x64.dll",
+   "what": "FidelityFX S.R. 3.0 Backend Library - NVIDIA"
+  },
+  {
+   "file": "ffx_frameinterpolation_x64.dll",
+   "what": "FidelityFX S.R. 3.0 Frame Interpolation - NVIDIA"
+  },
+  {
+   "file": "ffx_fsr2_api_dx11_x64.dll",
+   "what": "FidelityFX S.R. 2 API for DirectX 11 - AMD"
+  },
+  {
+   "file": "ffx_fsr2_api_dx12_x64.dll",
+   "what": "FidelityFX S.R. 2.0 API for DirectX 12 - AMD"
+  },
+  {
+   "file": "ffx_fsr2_api_x64.dll",
+   "what": "FidelityFX S.R. 2 API - AMD"
+  },
+  {
+   "file": "ffx_fsr3_x64.dll",
+   "what": "FidelityFX S.R. 3.0 Core Library - NVIDIA driver"
+  },
+  {
+   "file": "ffx_fsr3upscaler_x64.dll",
+   "what": "FidelityFX S.R. 3.0 Upscaler - NVIDIA"
+  },
+  {
+   "file": "ffx_opticalflow_x64.dll",
+   "what": "Optical Flow for FidelityFX S.R. 3.0 - NVIDIA"
+  },
+  {
+   "file": "fileregistry64.dll",
+   "what": "File Registry SKSE plugin"
+  },
+  {
+   "file": "flexrelease_x64.dll",
+   "what": "NVIDIA PhysX library - used by some physics mods"
+  },
+  {
+   "file": "fmod.dll",
+   "what": "FMOD audio engine used by Skyrim"
+  },
+  {
+   "file": "fnis.dll",
+   "what": "Fores New Idles in Skyrim animation framework"
+  },
+  {
+   "file": "fraps.dll",
+   "what": "Fraps Screen Capture and Overlay"
+  },
+  {
+   "file": "freezeprotect.dll",
+   "what": "Freeze Protection SKSE plugin"
+  },
+  {
+   "file": "fsaus.dll",
+   "what": "F-Secure Antivirus User-mode Service"
+  },
+  {
+   "file": "fwmf.esp",
+   "what": "Flat World Map Framework"
+  },
+  {
+   "file": "gameoverlayrenderer64.dll",
+   "what": "Steam Overlay Component"
+  },
+  {
+   "file": "gamepad++.dll",
+   "what": "Gamepad++ controller mod"
+  },
+  {
+   "file": "glu32.dll",
+   "what": "OpenGL Utility Library - graphics component"
+  },
+  {
+   "file": "gridhud.dll",
+   "what": "Grid HUD interface mod - UI"
+  },
+  {
+   "file": "havok.dll",
+   "what": "Havok Physics engine used by Skyrim"
+  },
+  {
+   "file": "hdtphysicsextensions.dll",
+   "what": "HDT-SMP Physics mod"
+  },
+  {
+   "file": "hdtsmp64.dll",
+   "what": "Skinned Mesh Physics ... less likely culprit"
+  },
+  {
+   "file": "hooksharedsse.dll",
+   "what": "HookShare SKSE plugin"
+  },
+  {
+   "file": "iequip.dll",
+   "what": "iEquip SKSE plugin"
+  },
+  {
+   "file": "igc64.dll",
+   "what": "Intel Graphics Compiler for OpenCL - graphics"
+  },
+  {
+   "file": "igd10iumd64.dll",
+   "what": "Intel Graphics Accelerator Drivers - graphics"
+  },
+  {
+   "file": "igd10um64gen11.dll",
+   "what": "Intel Graphics Accelerator Driver - graphics"
+  },
+  {
+   "file": "igd10um64xe.dll",
+   "what": "Intel HD Graphics Driver"
+  },
+  {
+   "file": "igdgmm64.dll",
+   "what": "Intel HD Graphics Drivers"
+  },
+  {
+   "file": "immersivefp.dll",
+   "what": "Immersive First Person View SKSE plugin"
+  },
+  {
+   "file": "inputhook.dll",
+   "what": "Input hook library used by some controller mods"
+  },
+  {
+   "file": "intelcontrollib.dll",
+   "what": "Intel Graphics Control Lib Runtime"
+  },
+  {
+   "file": "jcontainers.dll",
+   "what": "JContainers SKSE plugin for advanced scripting"
+  },
+  {
+   "file": "jsproxy.dll",
+   "what": "JScript Proxy Auto-Configuration - associated with Internet Explorer"
+  },
+  {
+   "file": "kavprot.dll",
+   "what": "Kaspersky Antivirus Protection Module"
+  },
+  {
+   "file": "kerberos.dll",
+   "what": "Kerberos Security Package - MS Windows security"
+  },
+  {
+   "file": "libxess.dll",
+   "what": "Xe Super Sampling Library - NVIDIA"
+  },
+  {
+   "file": "llcbhook.dll",
+   "what": "Load Library Copy Back hook for mod managers"
+  },
+  {
+   "file": "loadgamefix.dll",
+   "what": "Load Game CTD Fix SKSE plugin"
+  },
+  {
+   "file": "locksys.dll",
+   "what": "Lock System SKSE plugin for enhanced lockpicking"
+  },
+  {
+   "file": "markarth outskirts - water for enb (shades of skyrim) patch.esp",
+   "what": "optionally load after DynDOLOD.esp"
+  },
+  {
+   "file": "maxsu.dll",
+   "what": "MaxSU SKSE plugin for script utility functions"
+  },
+  {
+   "file": "mcafee.dll",
+   "what": "McAfee Antivirus Core Component"
+  },
+  {
+   "file": "mcmhelper.dll",
+   "what": "MCM Helper SKSE plugin for mod configuration"
+  },
+  {
+   "file": "medal-hook64.dll",
+   "what": "Medal.tv Hook Library - used for game recording"
+  },
+  {
+   "file": "mfgfix.dll",
+   "what": "SKSE plugin for facial animation fixes"
+  },
+  {
+   "file": "mlang.dll",
+   "what": "Multilanguage Support DLL - MS Windows"
+  },
+  {
+   "file": "modorganizer.dll",
+   "what": "Mod Organizer 2 virtual file system"
+  },
+  {
+   "file": "msacm32.dll",
+   "what": "Microsoft ACM Audio Filter"
+  },
+  {
+   "file": "msiso.dll",
+   "what": "Internet Explorer Isolation Library - MS Windows"
+  },
+  {
+   "file": "msvcp100.dll",
+   "what": "Microsoft Visual C++ 2010 Redistributable - Windows"
+  },
+  {
+   "file": "msvcp110.dll",
+   "what": "Microsoft Visual C++ 2012 Redistributable - Windows"
+  },
+  {
+   "file": "msvcp110_win.dll",
+   "what": "Microsoft Visual C++ 2015 Redistributable - Windows"
+  },
+  {
+   "file": "msvcp140.dll",
+   "what": "Microsoft Visual C++ 2015 Redistributable - Windows"
+  },
+  {
+   "file": "n64hooks.dll",
+   "what": "N64 hooks library - emulator"
+  },
+  {
+   "file": "nativepatch.dll",
+   "what": "SSE Native Patch SKSE plugin"
+  },
+  {
+   "file": "nemesis unlimited behavior engine.exe",
+   "what": "Animation framework, alternative to FNIS"
+  },
+  {
+   "file": "netimmerse.dll",
+   "what": "NetImmerse Override SKSE plugin"
+  },
+  {
+   "file": "ninput.dll",
+   "what": "Microsoft Pen and Touch Input Component"
+  },
+  {
+   "file": "npsystem.dll",
+   "what": "Norton Protection System Component - antivirus"
+  },
+  {
+   "file": "nscore64.dll",
+   "what": "Nscore library - antivirus"
+  },
+  {
+   "file": "nv_ags.dll",
+   "what": "NVIDIA Advanced Graphics SDK"
+  },
+  {
+   "file": "nvapi64.dll",
+   "what": "NVIDIA Driver API Library"
+  },
+  {
+   "file": "nvcuda.dll",
+   "what": "NVIDIA CUDA Driver"
+  },
+  {
+   "file": "nvdxgdmal64.dll",
+   "what": "NVIDIA DirectX Graphics Device Memory Allocation Library"
+  },
+  {
+   "file": "nvgpucomp64.dll",
+   "what": "NVIDIA GPU Component - graphics driver"
+  },
+  {
+   "file": "nvlddmkm.sys",
+   "what": "NVIDIA Windows Kernel Mode Driver"
+  },
+  {
+   "file": "nvngx_dlss.dll",
+   "what": "NVIDIA DLSS Driver"
+  },
+  {
+   "file": "nvngx_dlssg.dll",
+   "what": "NVIDIA DLSS Driver for FSR3"
+  },
+  {
+   "file": "nvofapi64.dll",
+   "what": "NVIDIA Optical Flow API"
+  },
+  {
+   "file": "nvoglv32.dll",
+   "what": "NVIDIA OpenGL Driver for 32-bit"
+  },
+  {
+   "file": "nvoglv64.dll",
+   "what": "NVIDIA OpenGL Driver for 64-bit"
+  },
+  {
+   "file": "nvspcap64.dll",
+   "what": "NVIDIA Video Capture API"
+  },
+  {
+   "file": "nvwgf2um.dll",
+   "what": "NVIDIA D3D10 User Mode Driver for 32-bit"
+  },
+  {
+   "file": "nvwgf2umx.dll",
+   "what": "NVIDIA D3D10 User Mode Driver for 64-bit"
+  },
+  {
+   "file": "nxmhandler.dll",
+   "what": "Nexus Mod Manager URL handler - mod manager"
+  },
+  {
+   "file": "occlusion.esp",
+   "what": "DynDOLOD occlusion optimization file"
+  },
+  {
+   "file": "oleacc.dll",
+   "what": "Active Accessibility Core Component - MS Windows"
+  },
+  {
+   "file": "occ_skyrim_tamriel.esp",
+   "what": "eFPS - Exterior FPS boost - sometimes needs patches"
+  },
+  {
+   "file": "onecorecommonproxystub.dll",
+   "what": "Windows system component"
+  },
+  {
+   "file": "onecoreuapcommonproxystub.dll",
+   "what": "OneCore UAP Common Proxy Stub - MS Windows"
+  },
+  {
+   "file": "openanimationreplacer.dll",
+   "what": "aka OAR - newer animation replacer mod"
+  },
+  {
+   "file": "opengl32.dll",
+   "what": "OpenGL Client DLL - graphics component"
+  },
+  {
+   "file": "overwolf.dll",
+   "what": "Overwolf Overlay Component"
+  },
+  {
+   "file": "ow-graphics-hook64.dll",
+   "what": "Overwolf Graphics Hook gaming component - overlay"
+  },
+  {
+   "file": "owclient.dll",
+   "what": "Overwolf gaming component - overlay"
+  },
+  {
+   "file": "owexplorer.dll",
+   "what": "Overwolf gaming component - overlay"
+  },
+  {
+   "file": "owutils.dll",
+   "what": "Overwolf gaming component - overlay"
+  },
+  {
+   "file": "papyrus compiler.exe",
+   "what": "Compiler for Skyrim's scripting language"
+  },
+  {
+   "file": "papyrusextender64.dll",
+   "what": "Papyrus Script Extender"
+  },
+  {
+   "file": "papyrusextenderse.dll",
+   "what": "Papyrus Script Extender"
+  },
+  {
+   "file": "papyrusextenderse64.dll",
+   "what": "Papyrus Script Extender"
+  },
+  {
+   "file": "papyrustweaks.dll",
+   "what": "Papyrus Script Tweaks"
+  },
+  {
+   "file": "papyrusutil.dll",
+   "what": "Papyrus Script Utility"
+  },
+  {
+   "file": "parallaxfix.dll",
+   "what": "Parallax Fix SKSE plugin"
+  },
+  {
+   "file": "particlepatch.dll",
+   "what": "Particle Patch for ENB"
+  },
+  {
+   "file": "pcb.dll",
+   "what": "Payload Control Box used by some SKSE plugins"
+  },
+  {
+   "file": "pdperfplugin.dll",
+   "what": "Puredark's Performance Plugin - SKSE"
+  },
+  {
+   "file": "pluginmanager.dll",
+   "what": "Plugin Manager for mod organizers"
+  },
+  {
+   "file": "po3_papyrusextender.dll",
+   "what": "Papyrus Script Extender"
+  },
+  {
+   "file": "po3_tweaks.dll",
+   "what": "Powerof3's Tweaks SKSE plugin"
+  },
+  {
+   "file": "product_info.dll",
+   "what": "A-Volute 3D Sound Experts - audio component"
+  },
+  {
+   "file": "quicklootee.dll",
+   "what": "QuickLoot EE SKSE plugin"
+  },
+  {
+   "file": "raptr64.dll",
+   "what": "Raptr Gaming Overlay"
+  },
+  {
+   "file": "reshade64.dll",
+   "what": "ReShade post-processing injector"
+  },
+  {
+   "file": "rtsshdrs64.dll",
+   "what": "RivaTuner Statistics Server Hooks - monitoring"
+  },
+  {
+   "file": "rtsshooks64.dll",
+   "what": "RivaTuner Statistics Server Hooks for graphics card monitoring"
+  },
+  {
+   "file": "sandboxingext.dll",
+   "what": "Sandboxing Extended SKSE plugin"
+  },
+  {
+   "file": "savecleanerpolyfill.dll",
+   "what": "Save Cleaner SKSE plugin"
+  },
+  {
+   "file": "scaleform.dll",
+   "what": "Scaleform UI middleware used by Skyrim"
+  },
+  {
+   "file": "simplemap.dll",
+   "what": "Simple Map SKSE plugin"
+  },
+  {
+   "file": "skee64.dll",
+   "what": "RaceMenu SKSE plugin"
+  },
+  {
+   "file": "skeleton.nif",
+   "what": "less likely culprit"
+  },
+  {
+   "file": "skeleton_female.nif",
+   "what": "less likely culprit"
+  },
+  {
+   "file": "skeleton_male.nif",
+   "what": "less likely culprit"
+  },
+  {
+   "file": "skinned mesh physics.dll",
+   "what": "Physics mod for character models"
+  },
+  {
+   "file": "skinshader.dll",
+   "what": "Custom skin shader used by some texture mods"
+  },
+  {
+   "file": "skse64_1_5_97.dll",
+   "what": "Skyrim Script Extender"
+  },
+  {
+   "file": "skse64_1_6_1170.dll",
+   "what": "Skyrim Script Extender) ... unlikely culprit"
+  },
+  {
+   "file": "skse64_steam_loader.dll",
+   "what": "SKSE Steam loader"
+  },
+  {
+   "file": "skse64_loader.exe",
+   "what": "SKSE loader executable"
+  },
+  {
+   "file": "skyprocednpp.dll",
+   "what": "SkyProc Patchers SKSE plugin"
+  },
+  {
+   "file": "skyrim paper map by freelancecartography (2nd edition) for fwmf.esp",
+   "what": "place near bottom of load order"
+  },
+  {
+   "file": "skyrimautoreloader.dll",
+   "what": "recommended bug fix"
+  },
+  {
+   "file": "skyrimupscaler.dll",
+   "what": "Puredark's Upscaler"
+  },
+  {
+   "file": "sl.common.dll",
+   "what": "Streamline Common Library - NVIDIA"
+  },
+  {
+   "file": "sl.dlss_g.dll",
+   "what": "NVIDIA DLSS Frame Generation"
+  },
+  {
+   "file": "sl.interposer.dll",
+   "what": "NVIDIA Streamline Interposer Module"
+  },
+  {
+   "file": "sl.reflex.dll",
+   "what": "NVIDIA Reflex Library"
+  },
+  {
+   "file": "spis.dll",
+   "what": "Spell Perk Item Distributor SKSE plugin"
+  },
+  {
+   "file": "sse-hooks.dll",
+   "what": "SSE Fixes SKSE plugin"
+  },
+  {
+   "file": "streamcore.dll",
+   "what": "Streaming Core library used by some audio mods"
+  },
+  {
+   "file": "subsurfacescattering.dll",
+   "what": "Subsurface Scattering shader mod"
+  },
+  {
+   "file": "symamsi.dll",
+   "what": "Windows Security Antimalware Scan Interface"
+  },
+  {
+   "file": "symnav.dll",
+   "what": "Symantec Antivirus Core Component"
+  },
+  {
+   "file": "symsrv.dll",
+   "what": "Symbol Server - MS Windows debugging component"
+  },
+  {
+   "file": "tbb.dll",
+   "what": "Intel Threading Building Blocks Memory Allocator - likely from SSE Engine Fixes - Part 2 ... less likely culprit"
+  },
+  {
+   "file": "tbbmalloc.dll",
+   "what": "Intel Threading Building Blocks Memory Allocator - likely from SSE Engine Fixes - Part 2 ... less likely culprit"
+  },
+  {
+   "file": "tes5conv.dll",
+   "what": "TES5Edit Converter library - modding tool"
+  },
+  {
+   "file": "threadpoolwinrt.dll",
+   "what": "Windows Runtime Thread Pool Library"
+  },
+  {
+   "file": "tmntsrv.dll",
+   "what": "Trend Micro Network Service - antivirus"
+  },
+  {
+   "file": "truehud.dll",
+   "what": "TrueHUD SKSE plugin"
+  },
+  {
+   "file": "uapng.dll",
+   "what": "Ultimate Animated Potions NG mod"
+  },
+  {
+   "file": "uiautomationcore.dll",
+   "what": "Microsoft UI Automation Core - Windows"
+  },
+  {
+   "file": "ucrtbase.dll",
+   "what": "Universal C Runtime Library - MS Windows"
+  },
+  {
+   "file": "und.dll",
+   "what": "Ultimate NPC Dodging mod"
+  },
+  {
+   "file": "user32.dll",
+   "what": "Microsoft User Interface Library - Windows"
+  },
+  {
+   "file": "usvfs_x64.dll",
+   "what": "User Space Virtual File System - MO2 - ⚠️ possible indicator of antivirus issue ⚠️"
+  },
+  {
+   "file": "vcruntime140.dll",
+   "what": "Visual C++ Runtime Library - MS Windows"
+  },
+  {
+   "file": "versionlib.dll",
+   "what": "VersionLib SKSE plugin"
+  },
+  {
+   "file": "vsfilter.dll",
+   "what": "DirectShow subtitle rendering - used by some video mods"
+  },
+  {
+   "file": "vulkan-1.dll",
+   "what": "Vulkan Runtime Library - MS Windows"
+  },
+  {
+   "file": "vulkaninfo.exe",
+   "what": "Vulkan Info Utility - MS Windows"
+  },
+  {
+   "file": "water for enb (shades of skyrim).esp",
+   "what": "optionally load after DynDOLOD.esp along with patches"
+  },
+  {
+   "file": "water for enb - patch - atlas map markers.esp",
+   "what": "optionally load after DynDOLOD.esp"
+  },
+  {
+   "file": "water for enb - patch - beyond reach.esp",
+   "what": "optionally load after DynDOLOD.esp"
+  },
+  {
+   "file": "water for enb - patch - beyond skyrim.esp",
+   "what": "optionally load after DynDOLOD.esp"
+  },
+  {
+   "file": "water for enb - patch - blue rift water.esp",
+   "what": "optionally load after DynDOLOD.esp"
+  },
+  {
+   "file": "water for enb - patch - blue volcanic water.esp",
+   "what": "optionally load after DynDOLOD.esp"
+  },
+  {
+   "file": "water for enb - patch - clear creek water.esp",
+   "what": "optionally load after DynDOLOD.esp"
+  },
+  {
+   "file": "water for enb - patch - clear interior water.esp",
+   "what": "optionally load after DynDOLOD.esp"
+  },
+  {
+   "file": "water for enb - patch - clear underwater.esp",
+   "what": "optionally load after DynDOLOD.esp"
+  },
+  {
+   "file": "water for enb - patch - darker lod water.esp",
+   "what": "optionally load after DynDOLOD.esp"
+  },
+  {
+   "file": "water for enb - patch - expanded towns and cities.esp",
+   "what": "optionally load after DynDOLOD.esp"
+  },
+  {
+   "file": "water for enb - patch - folkvangr.esp",
+   "what": "optionally load after DynDOLOD.esp"
+  },
+  {
+   "file": "water for enb - patch - fwmf for fantasy paper maps.esp",
+   "what": "Load after FWMF for Fantasy Paper Maps.esp"
+  },
+  {
+   "file": "water for enb - patch - generic landscape patch.esp",
+   "what": "optionally load after DynDOLOD.esp"
+  },
+  {
+   "file": "water for enb - patch - jks bannered mare.esp",
+   "what": "optionally load after DynDOLOD.esp"
+  },
+  {
+   "file": "water for enb - patch - jks ragged flagon.esp",
+   "what": "optionally load after DynDOLOD.esp"
+  },
+  {
+   "file": "water for enb - patch - landscape fixes for grass mods.esp",
+   "what": "optionally load after DynDOLOD.esp"
+  },
+  {
+   "file": "water for enb - patch - lux - jks ragged flagon.esp",
+   "what": "optionally load after DynDOLOD.esp"
+  },
+  {
+   "file": "water for enb - patch - muddy creek water.esp",
+   "what": "optionally load after DynDOLOD.esp"
+  },
+  {
+   "file": "water for enb - patch - transparent horse trough water.esp",
+   "what": "optionally load after DynDOLOD.esp"
+  },
+  {
+   "file": "water for enb - patch - volcanic water.esp",
+   "what": "optionally load after DynDOLOD.esp"
+  },
+  {
+   "file": "water for enb - patch - wyrmstooth.esp",
+   "what": "optionally load after DynDOLOD.esp"
+  },
+  {
+   "file": "windows.shell.servicehostbuilder.dll",
+   "what": "Windows Shell Service Host Builder"
+  },
+  {
+   "file": "windows.staterepositorycore.dll",
+   "what": "Windows State Repository Core"
+  },
+  {
+   "file": "windows.system.launcher.dll",
+   "what": "Windows System Launcher"
+  },
+  {
+   "file": "winepulse.drv",
+   "what": "Wine PulseAudio Driver - Windows emulator"
+  },
+  {
+   "file": "winevulkan.dll",
+   "what": "Wine Vulkan Driver - Windows emulator"
+  },
+  {
+   "file": "winex11.drv",
+   "what": "Wine X11 Driver - Windows emulator"
+  },
+  {
+   "file": "winspool.drv",
+   "what": "Windows Spooler Driver - printing subsystem"
+  },
+  {
+   "file": "wintrust.dll",
+   "what": "Windows Trust Manager - Windows - ⚠️ possible indicator of antivirus issue ⚠️"
+  },
+  {
+   "file": "wrsvc.dll",
+   "what": "Webroot SecureAnywhere Service - antivirus"
+  },
+  {
+   "file": "wtsapi32.dll",
+   "what": "Windows Terminal Server SDK API"
+  },
+  {
+   "file": "xaudio2_7.dll",
+   "what": "XAudio library for audio processing"
+  },
+  {
+   "file": "xefx.dll",
+   "what": "Intel Xe Graphics Architecture"
+  },
+  {
+   "file": "xefx_loader.dll",
+   "what": "Intel Xe Graphics Loader"
+  },
+  {
+   "file": "xinput1_3.dll",
+   "what": "XInput library for controller support"
+  },
+  {
+   "file": "zavcore.dll",
+   "what": "ZoneAlarm Core Antivirus Module"
+  },
+  {
+   "file": "shadow scene node",
+   "what": "potentially unhelpful crash log"
+  },
+  {
+   "file": "worldroot camera",
+   "what": "potentially unhelpful crash log"
+  },
+  {
+   "file": "worldroot cameranode",
+   "what": "potentially unhelpful crash log"
+  },
+  {
+   "file": "worldroot node",
+   "what": "potentially unhelpful crash log"
+  }
+ ],
+ "antivirus": [
+  {
+   "product": "360 Total Security",
+   "files": [
+    "360safe.dll"
+   ]
+  },
+  {
+   "product": "AhnLab V3",
+   "files": [
+    "v3svc.dll"
+   ]
+  },
+  {
+   "product": "AOL Active Virus Shield",
+   "files": [
+    "aolav.dll"
+   ]
+  },
+  {
+   "product": "ArcaBit",
+   "files": [
+    "arcabitengine.dll"
+   ]
+  },
+  {
+   "product": "AVG",
+   "files": [
+    "avgui.dll"
+   ]
+  },
+  {
+   "product": "Avast",
+   "files": [
+    "avast.dll",
+    "aswEngineA.dll"
+   ]
+  },
+  {
+   "product": "Avira/Surfshark",
+   "files": [
+    "avamsi.dll",
+    "avamsicli.dll",
+    "avcuf32.dll"
+   ]
+  },
+  {
+   "product": "Baidu Antivirus",
+   "files": [
+    "bdhsvc.dll"
+   ]
+  },
+  {
+   "product": "Bitdefender",
+   "files": [
+    "bdcore.dll",
+    "avc3.dll",
+    "atcuf64.dll",
+    "antimalware_provider64.dll",
+    "bdhkm64.dll"
+   ]
+  },
+  {
+   "product": "BullGuard",
+   "files": [
+    "bullguard.dll",
+    "bgadriver.dll"
+   ]
+  },
+  {
+   "product": "ClamAV",
+   "files": [
+    "libclamav.dll"
+   ]
+  },
+  {
+   "product": "Comodo",
+   "files": [
+    "cavwp.dll"
+   ]
+  },
+  {
+   "product": "Dr.Web",
+   "files": [
+    "dwengine.dll",
+    "drwebsp.dll"
+   ]
+  },
+  {
+   "product": "Emsisoft",
+   "files": [
+    "a2cmd.dll"
+   ]
+  },
+  {
+   "product": "ESET",
+   "files": [
+    "egui.dll",
+    "eks.dll"
+   ]
+  },
+  {
+   "product": "F-Secure",
+   "files": [
+    "fsaus.dll",
+    "fsdfw.dll"
+   ]
+  },
+  {
+   "product": "Fortinet",
+   "files": [
+    "fnetwizard.dll",
+    "fortinet_krn.dll"
+   ]
+  },
+  {
+   "product": "G Data",
+   "files": [
+    "gdata_avi.dll",
+    "gdavflt.dll"
+   ]
+  },
+  {
+   "product": "K7 AntiVirus",
+   "files": [
+    "k7sentry.dll",
+    "k7avgent.dll"
+   ]
+  },
+  {
+   "product": "Kaspersky",
+   "files": [
+    "kavprot.dll",
+    "klif.dll",
+    "com_antivirus.dll"
+   ]
+  },
+  {
+   "product": "Malwarebytes",
+   "files": [
+    "mbamswissarmy.dll"
+   ]
+  },
+  {
+   "product": "McAfee",
+   "files": [
+    "mcafee.dll",
+    "mfehidk.dll"
+   ]
+  },
+  {
+   "product": "Norton",
+   "files": [
+    "npsystem.dll",
+    "symcorpui.dll"
+   ]
+  },
+  {
+   "product": "Nscore",
+   "files": [
+    "nscore64.dll"
+   ]
+  },
+  {
+   "product": "Panda",
+   "files": [
+    "panda_url_filtering.dll",
+    "pavbootstartdriver.dll"
+   ]
+  },
+  {
+   "product": "Quick Heal",
+   "files": [
+    "qhsafemain.dll",
+    "qhwtp.dll"
+   ]
+  },
+  {
+   "product": "Rising",
+   "files": [
+    "ravmon.dll",
+    "rfapi.dll"
+   ]
+  },
+  {
+   "product": "Sophos",
+   "files": [
+    "sophos_detoured.dll",
+    "savapi.dll",
+    "sav.dll"
+   ]
+  },
+  {
+   "product": "SurfShark",
+   "files": [
+    "ssav.dll",
+    "surfshark.dll",
+    "sscore.dll",
+    "sskill.dll",
+    "ssprotect.dll",
+    "ssfirewall.dll",
+    "ssantivirus.dll",
+    "ssmonitor.dll",
+    "ssscanner.dll",
+    "surfshark"
+   ]
+  },
+  {
+   "product": "Symantec",
+   "files": [
+    "symnav.dll",
+    "symcheck.dll"
+   ]
+  },
+  {
+   "product": "TotalDefense",
+   "files": [
+    "sbamsvc.dll",
+    "tdrtac.dll"
+   ]
+  },
+  {
+   "product": "Trend Micro",
+   "files": [
+    "tmntsrv.dll",
+    "tmwlutil.dll",
+    "vsapi32.dll"
+   ]
+  },
+  {
+   "product": "VirusBuster",
+   "files": [
+    "vba32core.dll",
+    "vbadeint.dll"
+   ]
+  },
+  {
+   "product": "Webroot",
+   "files": [
+    "wrsvc.dll",
+    "wrsa.dll",
+    "wrusr.dll",
+    "wrlogon.dll",
+    "wrweb.dll",
+    "webroot"
+   ]
+  },
+  {
+   "product": "ZoneAlarm",
+   "files": [
+    "zavcore.dll",
+    "zlclient.dll"
+   ]
+  }
+ ],
+ "overlays": [
+  {
+   "product": "Discord",
+   "files": [
+    "discordhook64.dll"
+   ]
+  },
+  {
+   "product": "Overwolf",
+   "files": [
+    "overwolf.dll",
+    "owclient.dll",
+    "ow-graphics-hook64.dll",
+    "owutils.dll",
+    "owexplorer.dll"
+   ]
+  },
+  {
+   "product": "Raptr",
+   "files": [
+    "raptr64.dll"
+   ]
+  },
+  {
+   "product": "Fraps",
+   "files": [
+    "fraps.dll"
+   ]
+  },
+  {
+   "product": "NVIDIA GeForce Experience",
+   "files": [
+    "nv_ags.dll"
+   ]
+  },
+  {
+   "product": "RivaTuner Statistics Server",
+   "files": [
+    "rtsshdrs64.dll"
+   ]
+  },
+  {
+   "product": "MSI Afterburner",
+   "files": [
+    "msiafterburner.dll"
+   ]
+  }
+ ]
+}

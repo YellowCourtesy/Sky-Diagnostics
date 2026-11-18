@@ -35,6 +35,19 @@ jobs:
             Write-Error "src/Abyssus/API.h is not the same as AbyssusLib v$v. Copy include/Abyssus/API.h of that version again."; exit 1 }
           Write-Host "src/Abyssus/API.h is the file of AbyssusLib v$v."
 
+      # Known crash signs: the latest data of Phostwood's Crash Log Analyzer
+      # (GPL-3.0) goes into data/phostwood.json, only in this build. If the
+      # download or the import fails, the file in the repository is used.
+      # Only the data tables are read; no code of the analyzer runs.
+      - name: Get the latest Phostwood data
+        shell: pwsh
+        run: |
+          git clone --depth 1 https://github.com/Phostwood/crash-analyzer.git "$env:RUNNER_TEMP/crash-analyzer"
+          if ($LASTEXITCODE -ne 0) { Write-Warning "Phostwood's analyzer could not be downloaded: the data in the repository is used."; exit 0 }
+          python tools/phostwood.py import "$env:RUNNER_TEMP/crash-analyzer" "$env:RUNNER_TEMP/phostwood.json"
+          if ($LASTEXITCODE -ne 0) { Write-Warning "Phostwood's data could not be read (format changed?): the data in the repository is used."; exit 0 }
+          Copy-Item "$env:RUNNER_TEMP/phostwood.json" data/phostwood.json -Force
+
       - name: Set up vcpkg
         shell: pwsh
         run: |

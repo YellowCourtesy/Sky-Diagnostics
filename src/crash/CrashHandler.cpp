@@ -1,6 +1,7 @@
 #include "CrashHandler.h"
 
 #include "MemTrack.h"
+#include "Phostwood.h"
 
 #include "Profiler.h"
 #include "Session.h"
@@ -770,6 +771,7 @@ namespace skydiag::crash
 			const auto code = a_record.ExceptionCode;
 			const auto address = reinterpret_cast<std::uintptr_t>(a_record.ExceptionAddress);
 
+			const std::size_t exceptionStart = a_out.len;
 			Put(a_out, "\n== EXCEPTION ==\n");
 			Put(a_out, "Code: 0x%08lX %s\n", code, ExceptionName(code));
 			Put(a_out, "Address: 0x%016llX ", static_cast<unsigned long long>(address));
@@ -802,6 +804,7 @@ namespace skydiag::crash
 			static std::uintptr_t frames[kMaxFrames];
 			const int             frameCount = WalkStack(a_context, frames, kMaxFrames);
 
+			const std::size_t callStart = a_out.len;
 			Put(a_out, "\n== CALL STACK ==\n");
 			for (int i = 0; i < frameCount; ++i) {
 				Put(a_out, "#%-3d 0x%016llX  ", i, static_cast<unsigned long long>(frames[i]));
@@ -835,6 +838,7 @@ namespace skydiag::crash
 			}
 
 			// Stack values that point to something known.
+			const std::size_t stackStart = a_out.len;
 			Put(a_out, "\n== STACK (values that point to code, objects or text) ==\n");
 			for (int i = 0; i < kStackSlots; ++i) {
 				const std::uintptr_t slot = static_cast<std::uintptr_t>(a_context.Rsp) + static_cast<std::uintptr_t>(i) * 8;
@@ -853,7 +857,8 @@ namespace skydiag::crash
 			}
 
 			// Modules.
-			const auto& table = Modules();
+			const auto&       table = Modules();
+			const std::size_t modulesStart = a_out.len;
 			Put(a_out, "\n== MODULES (%d) ==\n", table.count);
 			for (int i = 0; i < table.count; ++i) {
 				const auto& m = table.items[i];
@@ -970,6 +975,44 @@ namespace skydiag::crash
 								   "An object can be near the crash by chance: treat this as a place to start, not as proof.\n");
 					}
 				}
+			}
+
+			// Known crash signs (Phostwood's Crash Log Analyzer data). The report text up to
+			// the MODULES section is the text that is searched.
+			{
+				static const char* loaded[kMaxModules];
+				static const char* onStack[kMaxFrames];
+				int                onStackCount = 0;
+				for (int i = 0; i < table.count; ++i) {
+					loaded[i] = table.items[i].name;
+				}
+				for (int i = 0; i < frameCount; ++i) {
+					const Module* m = FindModule(frames[i]);
+					if (!m) {
+						continue;
+					}
+					bool seen = false;
+					for (int k = 0; k < onStackCount && !seen; ++k) {
+						seen = onStack[k] == m->name;
+					}
+					if (!seen) {
+						onStack[onStackCount++] = m->name;
+					}
+				}
+				char gameOffset[32] = "";
+				if (crashModule && crashModule->isGame) {
+					_snprintf_s(gameOffset, _TRUNCATE, "%llX", static_cast<unsigned long long>(frames[0] - crashModule->base));
+				}
+				phostwood::CrashInput in;
+				in.exception = { a_out.buf + exceptionStart, callStart - exceptionStart };
+				in.callStackAndRegs = { a_out.buf + callStart, stackStart - callStart };
+				in.top = { a_out.buf + callStart, modulesStart - callStart };
+				in.gameOffset = gameOffset;
+				in.loaded = loaded;
+				in.loadedCount = table.count;
+				in.onStack = onStack;
+				in.onStackCount = onStackCount;
+				phostwood::Append(a_out, in);
 			}
 		}
 

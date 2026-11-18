@@ -42,6 +42,22 @@ add_subdirectory(lib/commonlibsse-ng commonlib EXCLUDE_FROM_ALL)
 
 option(SKYDIAG_BUILD_TESTS "Build the test programs" ON)
 
+# Known crash signs: the data of Phostwood's Crash Log Analyzer
+# (https://github.com/Phostwood/crash-analyzer, GPL-3.0). data/phostwood.json
+# holds it; the build workflow first gets the latest data of the analyzer into
+# that file (tools/phostwood.py import). Here it becomes C++ tables.
+find_package(Python3 REQUIRED COMPONENTS Interpreter)
+set(SKYDIAG_PHOSTWOOD_JSON "${CMAKE_CURRENT_SOURCE_DIR}/data/phostwood.json")
+set(SKYDIAG_PHOSTWOOD_TOOL "${CMAKE_CURRENT_SOURCE_DIR}/tools/phostwood.py")
+set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${SKYDIAG_PHOSTWOOD_JSON}" "${SKYDIAG_PHOSTWOOD_TOOL}")
+execute_process(
+	COMMAND "${Python3_EXECUTABLE}" "${SKYDIAG_PHOSTWOOD_TOOL}" inc "${SKYDIAG_PHOSTWOOD_JSON}" "${CMAKE_CURRENT_BINARY_DIR}/generated/PhostwoodData.inc"
+	RESULT_VARIABLE SKYDIAG_PHOSTWOOD_RESULT
+)
+if(NOT SKYDIAG_PHOSTWOOD_RESULT EQUAL 0)
+	message(FATAL_ERROR "tools/phostwood.py could not make the crash sign tables from data/phostwood.json")
+endif()
+
 # Crash handler core. Win32 only: no CommonLibSSE, no precompiled header.
 add_library(
 	skydiag_crash STATIC
@@ -49,12 +65,15 @@ add_library(
 	src/crash/CrashHandler.h
 	src/crash/MemTrack.cpp
 	src/crash/MemTrack.h
+	src/crash/Phostwood.cpp
+	src/crash/Phostwood.h
 	src/crash/Profiler.h
 	src/crash/Session.cpp
 	src/crash/Session.h
 	src/crash/Text.h
 )
-target_link_libraries(skydiag_crash PUBLIC dbghelp.lib psapi.lib)
+target_link_libraries(skydiag_crash PUBLIC dbghelp.lib psapi.lib version.lib)
+target_include_directories(skydiag_crash PRIVATE "${CMAKE_CURRENT_BINARY_DIR}/generated")
 if(MSVC)
 	target_compile_options(skydiag_crash PRIVATE /W4 /permissive- /utf-8 /Zi)
 endif()

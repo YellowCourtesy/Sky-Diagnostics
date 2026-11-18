@@ -24,6 +24,7 @@ fix problems.
 | Settings file, load time reports | Works, tested in the game (Proton) |
 | Session report (HTML) and comparison with the last 10 sessions | In test |
 | Mod Organizer 2 plugin (file to mod map) | Written, not tested, not used by the tool yet |
+| Known crash signs from Phostwood's Crash Log Analyzer data | Written, not tested |
 | Engine limits, memory attribution by DLL, HTML report | Not started |
 | SE 1.5.97, VR, other AE versions | Built, not tested |
 
@@ -49,6 +50,42 @@ file open) is in the log and in the events, with the cause.
 
 The Suggestions section of the report comes from the `[[Suggestions]]` part
 of the configuration file.
+
+## Known crash signs (Phostwood's data)
+
+The PROBABLE CAUSE section of a crash report also lists known crash signs.
+They come from the data of
+[Phostwood's Crash Log Analyzer](https://github.com/Phostwood/crash-analyzer)
+(by Phostwood, GPL-3.0). Only its data tables are used, not the web page or its
+code:
+
+- Groups of names that are in a crash log when a known problem is the cause
+  (for example graphics drivers, meshes, textures, animations, NavMesh and AI
+  pathing, memory). A group is "probable" if a name is in the exception, the
+  call stack or the registers, and "possible" if a name is only in the stack.
+- Known crash addresses in the game executable.
+- Short explanations of the files on the call stack.
+- Antivirus and overlay programs that have code in the game process.
+- DLL versions that do not work with newer game versions. The tool checks the
+  file version of these DLLs at the game start: the result is in the log, the
+  session events and each crash report. The file version of a DLL is not always
+  the version of the mod, so this check can be wrong for some mods.
+
+The data is in `data/phostwood.json`. Each build first gets the latest data of
+the analyzer (`tools/phostwood.py import`; the script reads the data files as
+text and runs no code of the analyzer). If the download or the import fails,
+the build uses the file in the repository. To update the file in the
+repository by hand:
+
+```bash
+git clone --depth 1 https://github.com/Phostwood/crash-analyzer.git analyzer
+```
+
+```bash
+python tools/phostwood.py import analyzer data/phostwood.json
+```
+
+`analyzer` is the folder that the first command makes.
 
 ## Configuration
 

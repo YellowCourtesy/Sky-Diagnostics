@@ -16,6 +16,7 @@
 #include "Report.h"
 #include "Settings.h"
 #include "crash/CrashHandler.h"
+#include "crash/Phostwood.h"
 #include "crash/Profiler.h"
 #include "crash/Session.h"
 #include "gfx/FrameStats.h"
@@ -769,6 +770,21 @@ namespace
 		case SKSE::MessagingInterface::kPostLoad:
 			SKSE::log::info("All SKSE plugins are loaded.");
 			skydiag::crash::RefreshModules();
+			{
+				// DLL versions that do not work with this game version (Phostwood's data).
+				static char text[4096];
+				skydiag::Out out{ text, sizeof(text), 0 };
+				text[0] = '\0';
+				const auto version = REL::Module::get().version().string("."sv);
+				const int  bad = skydiag::crash::phostwood::CheckDllVersions(version.c_str(), out);
+				SKSE::log::info("Phostwood's Crash Log Analyzer data {} ({}): {} DLL{} that do{} not work well with game version {}.", skydiag::crash::phostwood::Commit(),
+					skydiag::crash::phostwood::Date(), bad, bad == 1 ? "" : "s", bad == 1 ? "es" : "", version);
+				if (bad > 0) {
+					SKSE::log::warn("{}", std::string_view(text, out.len));
+					skydiag::session::Event("DLL versions: %d DLL%s that do%s not work well with this game version (see the log)", bad, bad == 1 ? "" : "s",
+						bad == 1 ? "es" : "");
+				}
+			}
 			HookModMemory();
 			break;
 		case SKSE::MessagingInterface::kInputLoaded:
