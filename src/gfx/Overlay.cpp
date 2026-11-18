@@ -14,6 +14,7 @@
 #include <cstring>
 #include <fstream>
 #include <sstream>
+#include <map>
 #include <string>
 #include <vector>
 #include <iterator>
@@ -37,9 +38,6 @@ namespace skydiag::overlay
 	namespace
 	{
 		constexpr const char* kSource = "SkyrimDiagnostics";
-		// The warnings box has its own place in the AbyssusLib stack (group Diag): after
-		// SkyGPS and the other plugins, directly above the notification queue.
-		constexpr const char* kWarningsSource = "SkyrimDiagnostics Warnings";
 		using PresentFn = HRESULT(STDMETHODCALLTYPE*)(IDXGISwapChain*, UINT, UINT);
 
 		constexpr int kPresentSlot = 8;  // position of Present in the IDXGISwapChain function table
@@ -282,25 +280,51 @@ namespace skydiag::overlay
 			return std::strcmp(a_id, "plugins") == 0 || std::strcmp(a_id, "memory-full") == 0 || std::strcmp(a_id, "vram-full") == 0;
 		}
 
-		// The plugin warning is a note without time limit in the queue: it
-		// stays while the warning shows. Over the limit: always. Near the
-		// limit: until 1 minute after the first cell is loaded, plus the
-		// warning hold time.
-		std::string g_pluginNote;  // the text that is in the queue, empty = none
+		constexpr AbyssusColor kRed{ 1.0f, 0.35f, 0.3f, 1.0f };
+		constexpr AbyssusColor kYellow{ 1.0f, 0.8f, 0.25f, 1.0f };
+		constexpr AbyssusColor kGrey{ 0.8f, 0.85f, 0.9f, 1.0f };
 
-		void UpdatePluginNote()
+		// Each warning is a note without time limit in the notification queue of
+		// AbyssusLib (no warnings box): it stays while the warning shows, and for the
+		// hold time after it ended (dim, with "ended N s ago"). The plugin warning:
+		// over the limit always; near the limit until 1 minute after the first cell
+		// is loaded, plus the hold time. The colors are the colors of the old box.
+		struct NoteState
 		{
-			const ShownWarning* plugins = nullptr;
+			std::string text;
+			float       alpha{ 0.0f };
+		};
+		std::map<std::string, NoteState> g_notes;  // warning id -> what is in the queue
+
+		void UpdateWarningNotes(const LARGE_INTEGER& a_now)
+		{
+			std::map<std::string, NoteState> now;
 			for (const auto& shown : g_shown) {
-				if (shown.used && std::strcmp(shown.warning.id, "plugins") == 0) {
-					plugins = &shown;
+				if (!shown.used) {
+					continue;
+				}
+				const int    level = static_cast<int>(shown.warning.severity);
+				AbyssusColor color = level == 3 ? kRed : level == 2 ? kYellow : kGrey;
+				NoteState    state{ shown.warning.text, 1.0f };
+				if (!shown.active) {
+					color.a = 0.6f;
+					state.alpha = 0.6f;
+					char ended[48];
+					std::snprintf(ended, sizeof(ended), " (ended %llu s ago)", static_cast<unsigned long long>(MicrosBetween(shown.lastActive, a_now) / 1000000));
+					state.text += ended;
+				}
+				const auto old = g_notes.find(shown.warning.id);
+				if (old == g_notes.end() || old->second.text != state.text || old->second.alpha != state.alpha) {
+					abyssus::SetNote(kSource, shown.warning.id, state.text.c_str(), NoteLevel(shown.warning.severity), color);
+				}
+				now[shown.warning.id] = std::move(state);
+			}
+			for (const auto& [id, state] : g_notes) {
+				if (!now.contains(id)) {
+					abyssus::ClearNote(kSource, id.c_str());
 				}
 			}
-			const std::string text = plugins ? plugins->warning.text : "";
-			if (text != g_pluginNote) {
-				g_pluginNote = text;
-				abyssus::SetNote(kSource, "plugins", text.c_str(), plugins ? NoteLevel(plugins->warning.severity) : abyssus::Level::kInfo);
-			}
+			g_notes = std::move(now);
 		}
 
 		// Collects the current measurements and makes the warning list.
@@ -419,11 +443,6 @@ namespace skydiag::overlay
 					const char* level = current[i].severity == advisor::Severity::kCritical ? "Critical" :
 					                    current[i].severity == advisor::Severity::kWarning ? "Warning" : "Note";
 					session::Event("%s: %s", level, current[i].text);
-					// And one time a note in the notification queue of AbyssusLib
-					// (the plugin warning: see UpdatePluginNote).
-					if (std::strcmp(current[i].id, "plugins") != 0) {
-						abyssus::Notify(kSource, current[i].text, 10.0f, NoteLevel(current[i].severity));
-					}
 					// The session report lists the suggestions for this problem type.
 					report::NoteProblem(current[i].id);
 					for (auto& shown : g_shown) {
@@ -450,65 +469,18 @@ namespace skydiag::overlay
 					++g_warningCount;
 				}
 			}
-			UpdatePluginNote();
+			UpdateWarningNotes(a_now);
 		}
 
-		// The two windows, and the builder that Part, Line and EndLine write to.
+		// The data window, and the builder that Part, Line and EndLine write to.
 		abyssus::WindowBuilder  g_dataWindow;
-		abyssus::WindowBuilder  g_warningsWindow;
 		abyssus::WindowBuilder* g_out = &g_dataWindow;
-		bool                    g_warningsShown = false;  // the warnings window is sent to AbyssusLib
-
-		constexpr AbyssusColor kRed{ 1.0f, 0.35f, 0.3f, 1.0f };
-		constexpr AbyssusColor kYellow{ 1.0f, 0.8f, 0.25f, 1.0f };
-		constexpr AbyssusColor kGrey{ 0.8f, 0.85f, 0.9f, 1.0f };
 
 		// Colors of the values: 0 = normal, 1 = yellow (near a limit),
 		// 2 = red (at or over a limit).
 		AbyssusColor LevelColor(int a_level)
 		{
 			return a_level >= 2 ? kRed : a_level == 1 ? kYellow : abyssus::WindowBuilder::kDefault;
-		}
-
-		void ClearWarningsWindow()
-		{
-			if (g_warningsShown) {
-				abyssus::ClearWindow(kWarningsSource, "warnings");
-				g_warningsShown = false;
-			}
-		}
-
-		// The warnings window (its own place in the stack: see kWarningsSource).
-		void BuildWarnings()
-		{
-			if (g_warningCount == 0) {
-				ClearWarningsWindow();
-				return;
-			}
-			LARGE_INTEGER now;
-			QueryPerformanceCounter(&now);
-			g_warningsWindow.Clear();
-			// Most severe first; a warning that ended is dim and shows
-			// how long ago it ended.
-			for (int level = 3; level >= 1; --level) {
-				for (const auto& shown : g_shown) {
-					if (!shown.used || static_cast<int>(shown.warning.severity) != level) {
-						continue;
-					}
-					AbyssusColor color = level == 3 ? kRed : level == 2 ? kYellow : kGrey;
-					if (shown.active) {
-						g_warningsWindow.Text(color, "%s", shown.warning.text);
-					} else {
-						color.a = 0.6f;
-						g_warningsWindow.Text(color, "%s (ended %llu s ago)", shown.warning.text,
-							static_cast<unsigned long long>(MicrosBetween(shown.lastActive, now) / 1000000));
-					}
-					g_warningsWindow.NewLine();
-				}
-			}
-			const AbyssusWindow window = g_warningsWindow.Make(0.7f, 560.0f);
-			abyssus::SetWindow(kWarningsSource, "warnings", &window);
-			g_warningsShown = true;
 		}
 
 		// Level for a value that is bad when it is high, and for one that
@@ -908,7 +880,6 @@ namespace skydiag::overlay
 			// in AbyssusLib shows or hides them. Without AbyssusLib, no windows.
 			if (abyssus::HasWindows()) {
 				BuildWindow();
-				BuildWarnings();
 			}
 			const std::uint32_t gpuQueue = UpdateGpuQueue();
 

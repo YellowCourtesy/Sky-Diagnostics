@@ -109,6 +109,7 @@ namespace abyssus
 		using NoteFn = void (*)(const char* a_source, const char* a_id, const char* a_text, int a_level);
 		using HasFn = bool (*)(const char* a_feature);
 		using SourceInfoFn = void (*)(const char* a_source, const char* a_group, int a_order);
+		using NoteColorFn = void (*)(const char* a_source, const char* a_id, const char* a_text, int a_level, float a_r, float a_g, float a_b, float a_a);
 
 		struct Api
 		{
@@ -119,6 +120,7 @@ namespace abyssus
 			NoteFn    note{ nullptr };
 			HasFn        has{ nullptr };
 			SourceInfoFn sourceInfo{ nullptr };
+			NoteColorFn  noteColor{ nullptr };
 			int          dllVersion{ 0 };  // 0 = AbyssusLib is not loaded
 		};
 
@@ -132,6 +134,7 @@ namespace abyssus
 					a.dllVersion = version;
 					a.has = reinterpret_cast<HasFn>(ABYSSUS_GET_PROC(module, "AbyssusAPI_Has"));
 					a.sourceInfo = reinterpret_cast<SourceInfoFn>(ABYSSUS_GET_PROC(module, "AbyssusAPI_SetSourceInfo"));
+					a.noteColor = reinterpret_cast<NoteColorFn>(ABYSSUS_GET_PROC(module, "AbyssusAPI_SetNoteColor"));
 					if (version >= 1) {
 						a.notify = reinterpret_cast<NotifyFn>(ABYSSUS_GET_PROC(module, "AbyssusAPI_Notify"));
 						a.status = reinterpret_cast<StatusFn>(ABYSSUS_GET_PROC(module, "AbyssusAPI_SetStatus"));
@@ -157,7 +160,7 @@ namespace abyssus
 
 	// True if the loaded AbyssusLib.dll has a feature, by name:
 	//   "notes", "status", "windows", "persistent-notes", "stack", "settings-file",
-	//   "source-info", "sized-data"
+	//   "source-info", "sized-data", "note-colors"
 	// A newer AbyssusLib can have more names. For an older DLL with no
 	// AbyssusAPI_Has, the answer comes from the functions that it has.
 	inline bool Has(const char* a_feature)
@@ -192,6 +195,16 @@ namespace abyssus
 	{
 		if (const auto fn = detail::Get().note)
 			fn(a_source, a_id, a_text, static_cast<int>(a_level));
+	}
+
+	// The same, with its own color (a == 0: the color of a_level). An AbyssusLib with no
+	// "note-colors" uses the color of a_level.
+	inline void SetNote(const char* a_source, const char* a_id, const char* a_text, Level a_level, const AbyssusColor& a_color)
+	{
+		if (const auto fn = detail::Get().noteColor)
+			fn(a_source, a_id, a_text, static_cast<int>(a_level), a_color.r, a_color.g, a_color.b, a_color.a);
+		else
+			SetNote(a_source, a_id, a_text, a_level);
 	}
 
 	inline void ClearNote(const char* a_source, const char* a_id) { SetNote(a_source, a_id, nullptr); }

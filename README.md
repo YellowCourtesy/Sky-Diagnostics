@@ -80,16 +80,16 @@ its version there.
 - The overlay needs AbyssusLib 2 or later (a separate SKSE plugin). AbyssusLib
   draws all windows and notes of the tool. Without AbyssusLib, the overlay
   does not show, a message box tells this at the start, and the reports work.
-- The data window is at the top of the AbyssusLib stack. The warnings box has
-  its own place (plugin name `SkyrimDiagnostics Warnings`, place 5000): under
-  SkyGPS and the other mods, directly above the notifications. Both are in
-  the group Diag. `F11` (in AbyssusLib) cycles the configurations: Diag / GPS / Notif,
+- The data window is at the top of the AbyssusLib stack (group Diag). `F11` (in AbyssusLib) cycles the configurations: Diag / GPS / Notif,
   GPS / Notif, GPS, Notif, Off. "Diag" is this tool. The `View` and
   `ToggleKey` settings and the `F10` key are removed; an old settings file
   with them still loads.
-- Each new warning is also sent one time to the AbyssusLib notification
-  queue (10 seconds). The Plugins warning is different: it stays in the queue
-  while it shows (always when over the limit).
+- The warnings are notifications in the AbyssusLib notification queue (there
+  is no warnings box). A warning stays in the queue while its condition is
+  true, and for 30 seconds (`WarningHoldSeconds`) after it ended, dim and with
+  "ended N s ago". Colors: critical red, warning yellow, note grey. The Plugins
+  warning: over the limit it stays always; near the limit until 1 minute after
+  the first cell is loaded.
 - The log file is `SkyrimDiagnostics/SkyrimDiagnostics.log` in the SKSE log folder.
 - Settings are in `Data/SKSE/Plugins/SkyrimDiagnostics.ini` (warning
   limits, sampler switches). The file has a comment for
