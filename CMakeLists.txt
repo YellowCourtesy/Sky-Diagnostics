@@ -4,7 +4,7 @@ cmake_minimum_required(VERSION 3.24)
 # declaration all use it.
 project(
 	SkyrimDiagnostics
-	VERSION 0.1.0
+	VERSION 0.2.0
 	DESCRIPTION "Performance and crash diagnostics for Skyrim SE/AE/VR"
 	LANGUAGES CXX
 )
@@ -65,6 +65,8 @@ add_library(
 	src/crash/CrashHandler.h
 	src/crash/MemTrack.cpp
 	src/crash/MemTrack.h
+	src/crash/Monitor.cpp
+	src/crash/Monitor.h
 	src/crash/Phostwood.cpp
 	src/crash/Phostwood.h
 	src/crash/Profiler.h
@@ -72,7 +74,7 @@ add_library(
 	src/crash/Session.h
 	src/crash/Text.h
 )
-target_link_libraries(skydiag_crash PUBLIC dbghelp.lib psapi.lib version.lib)
+target_link_libraries(skydiag_crash PUBLIC dbghelp.lib psapi.lib version.lib advapi32.lib shell32.lib user32.lib)
 target_include_directories(skydiag_crash PRIVATE "${CMAKE_CURRENT_BINARY_DIR}/generated")
 if(MSVC)
 	target_compile_options(skydiag_crash PRIVATE /W4 /permissive- /utf-8 /Zi)

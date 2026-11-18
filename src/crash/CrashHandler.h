@@ -19,6 +19,7 @@ namespace skydiag::crash
 		const char*    platform{ "" };
 		std::uint32_t  mainThreadId{ 0 };       // 0 = unknown
 		bool           writeMinidump{ true };
+		bool           openReport{ true };       // the monitor opens the crash report after the game closed
 	};
 
 	// Installs the handler. Call one time, not from DllMain.
@@ -57,14 +58,28 @@ namespace skydiag::crash
 	// "test crash"). The text is copied.
 	void SetNote(const char* a_note);
 
+	// The save that is loading or was loaded last ("Save: ..." line of the
+	// reports), and the mod setup ("Mod setup: ..." line, for example the MO2
+	// profile). The text is copied.
+	void SetSave(const char* a_text);
+	void SetSetup(const char* a_text);
+
 	// Makes a report with the call stack of each thread. Use it when a_focusThreadId
 	// (the game update thread) did not respond for a_stallSeconds. The
 	// threads continue after the report. Returns true if a file was written.
-	bool WriteStallReport(std::uint32_t a_focusThreadId, std::uint32_t a_stallSeconds);
+	enum class StallKind
+	{
+		kFreeze,         // the game update thread did not respond
+		kLoadingScreen,  // a loading screen that does not end
+	};
+	bool WriteStallReport(std::uint32_t a_focusThreadId, std::uint32_t a_stallSeconds, StallKind a_kind = StallKind::kFreeze);
 
 	// True if the active (foreground) window belongs to this process. The
 	// game stops its update loop while its window is not active.
 	bool IsProcessForeground();
+
+	// Bytes that this process read from files and devices since it started.
+	std::uint64_t ProcessReadBytes();
 
 	// The mod DLLs that are loaded now (not the game, system, framework or
 	// this tool). Returns the count. Not from a crash context.

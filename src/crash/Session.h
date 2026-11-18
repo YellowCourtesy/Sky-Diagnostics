@@ -10,6 +10,7 @@
 //
 // Win32 only: no CommonLibSSE and no game data.
 
+#include <cstddef>
 #include <cstdint>
 
 #include "Text.h"
@@ -30,6 +31,14 @@ namespace skydiag::session
 	// record could not be made. a_previousUnclean is set to true if a
 	// report was written.
 	bool Start(const Config& a_config, bool* a_previousUnclean);
+
+	// For the monitor process, after the game stopped: if the session record
+	// in a_dataDir shows a running session (no correct exit, no crash report),
+	// writes the unclean exit report with the exit code and marks the record,
+	// so the next game start does not write it again. Returns true if a report
+	// was written; a_pathOut gets its path.
+	bool WriteExitReport(const wchar_t* a_dataDir, const wchar_t* a_reportDir, std::uint32_t a_exitCode, bool a_closing, wchar_t* a_pathOut,
+		std::size_t a_pathCap);
 
 	// Adds one line to the event list. Safe from all threads.
 	void Event(const char* a_fmt, ...);

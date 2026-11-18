@@ -7,6 +7,7 @@
 #include <psapi.h>
 
 #include <atomic>
+#include <cstddef>
 #include <cstring>
 
 #include "../MemText.h"
@@ -244,7 +245,45 @@ namespace skydiag::session
 
 		// Makes the report for a previous session that stopped with no
 		// crash report and no correct exit.
-		bool WriteUncleanReport(const Record& a_previous)
+		// The meaning of a process exit code (an NTSTATUS value for most crashes).
+		const char* ExitCodeText(DWORD a_code)
+		{
+			switch (a_code) {
+			case 0:
+				return "normal exit";
+			case 1:
+				return "stopped from outside (for example the task manager), or a program error";
+			case 3:
+				return "abort: a DLL stopped the program on purpose";
+			case 0xC0000005:
+				return "access violation";
+			case 0xC00000FD:
+				return "stack overflow";
+			case 0xC0000374:
+				return "heap corruption: code damaged the memory manager data";
+			case 0xC0000409:
+				return "fail fast: a DLL stopped the program at once (security check, __fastfail, or an error that it could not handle)";
+			case 0xC0000017:
+			case 0xC000012D:
+				return "out of memory";
+			case 0xC000001D:
+				return "illegal instruction";
+			case 0xC0000420:
+				return "assertion failure";
+			case 0xE06D7363:
+				return "C++ exception that no code caught";
+			case 0x40010004:
+				return "the process was stopped by a debugger or from outside";
+			default:
+				return a_code >= 0xC0000000 ? "error (NTSTATUS)" : "not known";
+			}
+		}
+
+		// a_exitCode: the exit code from the monitor, or kNoExitCode at the next game start.
+		constexpr DWORD kNoExitCode = 0xFFFFFFFF;
+
+		bool WriteUncleanReport(const Record& a_previous, DWORD a_exitCode = kNoExitCode, bool a_closing = false, wchar_t* a_pathOut = nullptr,
+			std::size_t a_pathCap = 0)
 		{
 			static char buffer[256 * 1024];
 			Out         out{ buffer, sizeof(buffer), 0 };
@@ -263,8 +302,18 @@ namespace skydiag::session
 			memcpy(platform, a_previous.platform, sizeof(a_previous.platform));
 
 			Put(out, "SkyrimDiagnostics unclean exit report\n");
-			Put(out, "The previous game session stopped without a correct exit and without a crash report.\n");
-			Put(out, "This report was made at the next game start from the session record.\n\n");
+			if (a_exitCode == kNoExitCode) {
+				Put(out, "The previous game session stopped without a correct exit and without a crash report.\n");
+				Put(out, "This report was made at the next game start from the session record.\n\n");
+			} else {
+				Put(out, "The game stopped without a correct exit and without a crash report from the game.\n");
+				Put(out, "The monitor process made this report when the game stopped.\n");
+				Put(out, "Exit code: 0x%08lX (%s)\n", static_cast<unsigned long>(a_exitCode), ExitCodeText(a_exitCode));
+				if (a_closing) {
+					Put(out, "The player had chosen to quit or to close the window: this was during the game exit, not in play.\n");
+				}
+				Put(out, "\n");
+			}
 			Put(out, "Tool version: %s\n", tool);
 			Put(out, "Game: %s\n", game);
 			Put(out, "Platform: %s\n", platform);
@@ -280,7 +329,12 @@ namespace skydiag::session
 
 			Put(out, "\n== PROBABLE CAUSE ==\n");
 			const bool frozen = last && last->updateSilentMs >= 10000;
-			if (frozen) {
+			if (a_exitCode == 0xC0000409 || a_exitCode == 0xC0000374 || a_exitCode == 0xC00000FD || a_exitCode == 3) {
+				Put(out, "The game stopped with exit code 0x%08lX: %s.\n", static_cast<unsigned long>(a_exitCode), ExitCodeText(a_exitCode));
+				Put(out, "In this type of stop the process ends at once, and no crash handler in the game can run. The DLL that did it cannot be named "
+						 "from the exit code. Look at the last events above, and at the minidump if one was written.\n");
+				Put(out, "Confidence: high for the type of stop, low for its source.\n");
+			} else if (frozen) {
 				Put(out, "The game update thread did not respond for %lu s when the process stopped.\n",
 					static_cast<unsigned long>(last->updateSilentMs / 1000));
 				Put(out, "The game was frozen (or in a very long load) and then something stopped the process, usually the user.\n");
@@ -303,6 +357,9 @@ namespace skydiag::session
 			wchar_t path[800];
 			swprintf_s(path, L"%s\\unclean-exit-%04u-%02u-%02u-%02u-%02u-%02u.log", g_reportDir, end.wYear, end.wMonth, end.wDay, end.wHour,
 				end.wMinute, end.wSecond);
+			if (a_pathOut && a_pathCap > 0) {
+				wcsncpy_s(a_pathOut, a_pathCap, path, _TRUNCATE);
+			}
 			const HANDLE file = CreateFileW(path, GENERIC_WRITE, FILE_SHARE_READ, nullptr, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
 			if (file == INVALID_HANDLE_VALUE) {
 				return false;
@@ -330,6 +387,40 @@ namespace skydiag::session
 			}
 			return WriteUncleanReport(previous);
 		}
+	}
+
+	bool WriteExitReport(const wchar_t* a_dataDir, const wchar_t* a_reportDir, std::uint32_t a_exitCode, bool a_closing, wchar_t* a_pathOut,
+		std::size_t a_pathCap)
+	{
+		if (!a_dataDir || !a_reportDir) {
+			return false;
+		}
+		wcsncpy_s(g_reportDir, a_reportDir, _TRUNCATE);
+		wchar_t path[800];
+		swprintf_s(path, L"%s\\session.bin", a_dataDir);
+		const HANDLE file = CreateFileW(path, GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE, nullptr, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr);
+		if (file == INVALID_HANDLE_VALUE) {
+			return false;
+		}
+		static Record previous;
+		DWORD         read = 0;
+		const bool    ok = ReadFile(file, &previous, sizeof(previous), &read, nullptr) && read == sizeof(previous);
+		if (!ok || !ValidRecord(previous) || previous.state != kRunning) {
+			CloseHandle(file);
+			return false;
+		}
+		const bool written = WriteUncleanReport(previous, a_exitCode, a_closing, a_pathOut, a_pathCap);
+		if (written) {
+			// The next game start must not make a second report of this exit.
+			const std::uint32_t state = kCrashReported;
+			const LONG          offset = static_cast<LONG>(offsetof(Record, state));
+			DWORD               done = 0;
+			if (SetFilePointer(file, offset, nullptr, FILE_BEGIN) != INVALID_SET_FILE_POINTER) {
+				WriteFile(file, &state, sizeof(state), &done, nullptr);
+			}
+		}
+		CloseHandle(file);
+		return written;
 	}
 
 	bool Start(const Config& a_config, bool* a_previousUnclean)

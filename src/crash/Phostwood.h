@@ -44,6 +44,11 @@ namespace skydiag::crash::phostwood
 	// for the crash reports. Returns the number of these DLLs.
 	int CheckDllVersions(const char* a_gameVersion, Out& a_out);
 
+	// What Append found (bits of its return value).
+	constexpr int kFoundSigns = 1;     // a known crash sign
+	constexpr int kFoundPrograms = 2;  // an antivirus or overlay program in the game process
+	constexpr int kFoundDllVersion = 4; // a DLL version that does not work with this game version
+
 	// After a crash (no heap memory, no locks): writes the known crash signs.
-	void Append(Out& a_out, const CrashInput& a_in);
+	int Append(Out& a_out, const CrashInput& a_in);
 }

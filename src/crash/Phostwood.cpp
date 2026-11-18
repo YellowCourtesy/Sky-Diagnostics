@@ -225,8 +225,9 @@ namespace skydiag::crash::phostwood
 		return found;
 	}
 
-	void Append(Out& a_out, const CrashInput& a_in)
+	int Append(Out& a_out, const CrashInput& a_in)
 	{
+		int result = 0;
 		Put(a_out, "\nKnown crash signs (data of Phostwood's Crash Log Analyzer, version %s of %s):\n", kPhostwoodCommit[0] ? kPhostwoodCommit : "unknown",
 			kPhostwoodDate[0] ? kPhostwoodDate : "unknown date");
 		int  signs = 0;
@@ -281,6 +282,7 @@ namespace skydiag::crash::phostwood
 		if (signs == 0) {
 			Put(a_out, "  None.\n");
 		} else {
+			result |= kFoundSigns;
 			Put(a_out, "  Probable: found in the exception, the call stack or the registers. Possible: found only in the stack. "
 					   "A sign is a place to start, not proof.\n");
 		}
@@ -320,6 +322,7 @@ namespace skydiag::crash::phostwood
 						Put(a_out, "\nPrograms with code in the game process that are known to cause crashes (Phostwood's data):\n");
 						head = true;
 					}
+					result |= kFoundPrograms;
 					Put(a_out, "  %s: %s (%s). Add the game folder as an exception, or turn it off for a test.\n", antivirus ? "Antivirus" : "Overlay", p.product,
 						p.file);
 					break;
@@ -330,6 +333,8 @@ namespace skydiag::crash::phostwood
 		// The DLL version check of the game start.
 		if (g_dllText[0] != '\0') {
 			Put(a_out, "\nDLLs that do not work well with this game version (Phostwood's data, checked at the game start):\n%s", g_dllText);
+			result |= kFoundDllVersion;
 		}
+		return result;
 	}
 }

@@ -16,6 +16,7 @@
 #include "Report.h"
 #include "Settings.h"
 #include "crash/CrashHandler.h"
+#include "crash/Monitor.h"
 #include "crash/Phostwood.h"
 #include "crash/Profiler.h"
 #include "crash/Session.h"
@@ -207,10 +208,31 @@ namespace
 		skydiag::crash::SetModLookup(&skydiag::modmap::ModForDll);
 		LoadModMap();
 
+		config.openReport = g_settings.openReport;
 		if (skydiag::crash::Install(config)) {
 			SKSE::log::info("Crash handler is on. Reports: {}", reportDir.string());
 		} else {
 			SKSE::log::error("Crash handler could not start.");
+		}
+
+		// The monitor process: rundll32.exe with this DLL (see crash/Monitor.h).
+		if (g_settings.monitor) {
+			static const std::wstring skse = logDir->wstring();
+			static const std::wstring monitorLog = (dataDir / "Monitor.log").wstring();
+			skydiag::monitor::Options options;
+			options.reportDir = dir.c_str();
+			options.dataDir = data.c_str();
+			options.skseDir = skse.c_str();
+			options.logPath = monitorLog.c_str();
+			options.freezeSeconds = static_cast<std::uint32_t>(g_settings.stallSeconds);
+			options.openReport = g_settings.openReport;
+			if (skydiag::monitor::Start(options)) {
+				SKSE::log::info("Monitor process started (rundll32.exe with this DLL). Its log: {}", (dataDir / "Monitor.log").string());
+			} else {
+				SKSE::log::error("The monitor process could not start. Crash reports still work; dumps come from the game process.");
+			}
+		} else {
+			SKSE::log::info("Monitor process: off in the settings file.");
 		}
 	}
 
@@ -228,6 +250,8 @@ namespace
 	std::atomic<bool>          g_beatPending{ false };
 	std::atomic<Clock::rep>    g_firstLoadEnd{ 0 };     // when the first cell was loaded (first loading screen after the main menu), 0 = not yet
 	std::atomic<bool>          g_loading{ false };      // a loading screen is open
+	std::atomic<Clock::rep>    g_loadingSince{ 0 };     // when the open loading screen opened, 0 = none
+	std::string                g_saveName;             // the save that is loading or was loaded last
 	std::atomic<bool>          g_dataLoaded{ false };
 	skydiag::overlay::EngineState g_engineState;         // watchdog thread only
 
@@ -472,17 +496,51 @@ namespace
 		int  secondsSinceLoad = 0;
 		int  reports = 0;
 
+		const auto kLoadingLimit = std::chrono::seconds(g_settings.loadingScreenSeconds);
+		bool       loadingReported = false;
+		bool       slowShutdownNoted = false;
+		std::uint64_t lastReadBytes = 0;
+		auto       lastReadChange = Clock::now();
+
 		for (;;) {
 			std::this_thread::sleep_for(1s);
+			skydiag::monitor::Beat();
 
 			// A normal game exit sets this flag. The session record must
 			// know it, or the next start reports an unclean exit.
 			if (!quitSeen) {
 				if (const auto main = RE::Main::GetSingleton(); main && main->GetRuntimeData().quitGame) {
 					quitSeen = true;
+					skydiag::monitor::NoteQuit();
 					skydiag::session::Event("Game exit requested");
 					skydiag::session::NoteCleanExit();
 					WriteReport();
+				}
+			}
+
+			// Infinite loading screen: a loading screen that is open longer than
+			// LoadingScreenSeconds, and no data read from the disk in the last 30 s.
+			{
+				const std::uint64_t readBytes = skydiag::crash::ProcessReadBytes();
+				if (readBytes != lastReadBytes) {
+					lastReadBytes = readBytes;
+					lastReadChange = Clock::now();
+				}
+				const auto loadStart = g_loadingSince.load();
+				if (g_loading.load() && loadStart != 0 && !quitSeen) {
+					const auto open = Clock::now().time_since_epoch() - Clock::duration(loadStart);
+					if (!loadingReported && open > kLoadingLimit && Clock::now() - lastReadChange > 30s) {
+						loadingReported = true;
+						const auto openSeconds = std::chrono::duration_cast<std::chrono::seconds>(open).count();
+						skydiag::session::Event("Infinite loading screen: open for %lld s, no disk reads for 30 s", static_cast<long long>(openSeconds));
+						skydiag::report::NoteProblem("stall");
+						const bool ok = skydiag::crash::WriteStallReport(g_updateThreadId.load(), static_cast<std::uint32_t>(openSeconds),
+							skydiag::crash::StallKind::kLoadingScreen);
+						SKSE::log::warn("Loading screen open for {} s with no disk reads for 30 s. Infinite loading screen report {}.", openSeconds,
+							ok ? "written" : "not written");
+					}
+				} else {
+					loadingReported = false;
 				}
 			}
 
@@ -495,6 +553,7 @@ namespace
 						g_lastResponseMs = static_cast<std::uint32_t>(std::chrono::duration_cast<std::chrono::milliseconds>(waited).count());
 					}
 					g_updateThreadId = REX::W32::GetCurrentThreadId();
+					skydiag::monitor::SetMainThread(g_updateThreadId.load());
 					// SKSE runs this task on the game update thread. The
 					// profiler samples that thread too.
 					skydiag::profiler::NoteTaskThread(g_updateThreadId.load());
@@ -645,6 +704,16 @@ namespace
 			sample.updateResponseMs = silentMs > 1000 ? silentMs : g_lastResponseMs.load();
 			skydiag::session::Sample(sample);
 
+			// After the player chose to quit, a long wait is a slow shutdown, not a freeze in play.
+			if (quitSeen && silent > kStallLimit) {
+				if (!slowShutdownNoted) {
+					slowShutdownNoted = true;
+					skydiag::session::Event("Slow shutdown: the game takes more than %lld s to close (no stall report)", static_cast<long long>(silentSeconds));
+					SKSE::log::info("Slow shutdown: the game takes more than {} s to close. This is not a freeze in play: no stall report.", silentSeconds);
+				}
+				continue;
+			}
+
 			if (!reported && silent > kStallLimit) {
 				reported = true;
 				skydiag::session::Event("Stall: the game update thread did not respond for %lld s", static_cast<long long>(silentSeconds));
@@ -748,7 +817,9 @@ namespace
 						}
 					}
 					g_loading = a_event->opening;
+					g_loadingSince = a_event->opening ? Clock::now().time_since_epoch().count() : 0;
 					skydiag::session::SetLoading(a_event->opening);
+					skydiag::monitor::SetLoading(a_event->opening);
 				}
 			}
 			return RE::BSEventNotifyControl::kContinue;
@@ -796,6 +867,7 @@ namespace
 			break;
 		case SKSE::MessagingInterface::kDataLoaded:
 			SKSE::log::info("Game data is loaded.");
+			SKSE::log::info("Game window close requests: {}.", skydiag::monitor::WatchWindowClose() ? "watched" : "not watched (window not found)");
 			// All plugins are loaded now: AbyssusLib can be found. Group "Diag", at the top.
 			abyssus::SetSourceInfo("SkyrimDiagnostics", "Diag", 100);
 			// All plugins are loaded now: AbyssusLib can be found.
@@ -857,10 +929,19 @@ namespace
 			}
 			break;
 		case SKSE::MessagingInterface::kPreLoadGame:
-			skydiag::session::Event("Save load: start");
+			{
+				// The data is the name of the save file (no folder).
+				const std::string save = a_msg->data && a_msg->dataLen > 0 ?
+				                             std::string(static_cast<const char*>(a_msg->data), strnlen(static_cast<const char*>(a_msg->data), a_msg->dataLen)) :
+				                             ""s;
+				g_saveName = save;
+				skydiag::session::Event("Save load: start (%s)", save.c_str());
+				skydiag::crash::SetSave(fmt::format("{} (loading now)", save.empty() ? "name not known"s : save).c_str());
+			}
 			break;
 		case SKSE::MessagingInterface::kPostLoadGame:
 			skydiag::session::Event("Save load: end");
+			skydiag::crash::SetSave(fmt::format("{} (loaded)", g_saveName.empty() ? "name not known"s : g_saveName).c_str());
 			NoteCharacter();
 			break;
 		case SKSE::MessagingInterface::kSaveGame:
@@ -989,6 +1070,13 @@ SKSE_PLUGIN_LOAD(const SKSE::LoadInterface* a_skse)
 
 	std::thread(WatchdogLoop).detach();
 	return true;
+}
+
+// The monitor process: rundll32.exe "<this DLL>",SkyDiagMonitor <game process id>.
+// See crash/Monitor.h. Not called in the game process.
+extern "C" __declspec(dllexport) void __stdcall SkyDiagMonitor(void*, void*, const char* a_commandLine, int)
+{
+	skydiag::monitor::Run(a_commandLine);
 }
 
 // The loader calls this when the process exits through the normal exit path.

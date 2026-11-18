@@ -85,6 +85,12 @@ namespace skydiag
 				result.memoryByDll = number != 0;
 			} else if (key == "stallseconds" && isNumber && number >= 5 && number <= 3600) {
 				result.stallSeconds = static_cast<int>(number);
+			} else if (key == "loadingscreenseconds" && isNumber && number >= 30 && number <= 7200) {
+				result.loadingScreenSeconds = static_cast<int>(number);
+			} else if (key == "monitor" && isNumber) {
+				result.monitor = number != 0;
+			} else if (key == "openreport" && isNumber) {
+				result.openReport = number != 0;
 			}
 		}
 		return result;

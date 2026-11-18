@@ -1,6 +1,7 @@
 #include "CrashHandler.h"
 
 #include "MemTrack.h"
+#include "Monitor.h"
 #include "Phostwood.h"
 
 #include "Profiler.h"
@@ -77,9 +78,25 @@ namespace skydiag::crash
 
 		std::atomic<LPTOP_LEVEL_EXCEPTION_FILTER> g_previousFilter{ nullptr };
 
+		// The short answer at the top of a crash report (filled by BuildReport,
+		// written by WriteFiles).
+		struct Quick
+		{
+			char        what[600];
+			char        suspect[320];
+			const char* confidence;
+			char        tryText[600];
+			char        group[200];  // the place of the crash, for the crash history
+			bool        closing;     // a crash while the game closes
+		};
+		Quick g_quick;
+		bool  g_openReport = true;
+
 		char g_report[kReportCap];
 		char g_stallReport[kReportCap];
 		char g_note[256];
+		char g_save[300];
+		char g_setup[300];
 
 		constexpr int kMaxThreads = 1024;
 		struct ThreadTable
@@ -752,8 +769,97 @@ namespace skydiag::crash
 
 		// -------------------------------------------------------------- report
 
+		// The type of an access violation, in plain words. Uses the state of
+		// the memory at the address.
+		void DescribeAccess(Out& a_out, ULONG_PTR a_kind, std::uintptr_t a_target, char* a_what, std::size_t a_whatCap)
+		{
+			const char* op = a_kind == 1 ? "write to" : (a_kind == 8 ? "run code at" : "read from");
+			const auto  target = static_cast<unsigned long long>(a_target);
+			if (a_target == ~static_cast<std::uintptr_t>(0)) {
+				// The processor does not give the address when a pointer is
+				// not in the valid (canonical) address range. Windows then
+				// reports address 0xFFFFFFFFFFFFFFFF.
+				Put(a_out, "Code used a pointer with a value that cannot be an address. The pointer value is not available. "
+						   "The usual cause is a corrupted pointer or an object that was deleted and then overwritten.\n");
+				_snprintf_s(a_what, a_whatCap, _TRUNCATE, "The game crashed: code used a damaged pointer (its value cannot be an address).");
+				return;
+			}
+			if (a_target < 0x10000) {
+				if (a_target == 0) {
+					Put(a_out, "Code used a null pointer: an object that does not exist (%s address 0).\n", op);
+				} else {
+					Put(a_out, "Code used the part at offset 0x%llX of an object that does not exist: a null pointer plus an offset (%s address 0x%llX).\n",
+						target, op, target);
+				}
+				_snprintf_s(a_what, a_whatCap, _TRUNCATE, "The game crashed: code used an object that does not exist (a null pointer).");
+				return;
+			}
+			MEMORY_BASIC_INFORMATION info{};
+			const bool               known = VirtualQuery(reinterpret_cast<LPCVOID>(a_target), &info, sizeof(info)) == sizeof(info);
+			const Module*            module = FindModule(a_target);
+			if (a_kind == 8) {
+				if (module) {
+					Put(a_out, "The processor tried to run code at %s+%llX: in a module, but at a place that is not code. The usual cause is a damaged "
+							   "function pointer.\n",
+						module->name, static_cast<unsigned long long>(a_target - module->base));
+					_snprintf_s(a_what, a_whatCap, _TRUNCATE, "The game crashed: code jumped to a place that is not code (a damaged function pointer).");
+				} else if (known && info.State == MEM_FREE) {
+					Put(a_out, "The processor tried to run code at address 0x%llX, which is free memory: the code that was there was removed. The usual "
+							   "cause is a hook of a DLL that was unloaded, or a function of an object that was deleted.\n",
+						target);
+					_snprintf_s(a_what, a_whatCap, _TRUNCATE, "The game crashed: code jumped into memory that was freed (a removed hook or a deleted object).");
+				} else {
+					Put(a_out, "The processor tried to run code at address 0x%llX, where there is no code. The usual cause is a bad function pointer or a "
+							   "deleted object.\n",
+						target);
+					_snprintf_s(a_what, a_whatCap, _TRUNCATE, "The game crashed: code jumped to an address with no code (a bad function pointer or a removed hook).");
+				}
+				return;
+			}
+			if (known && info.State == MEM_FREE) {
+				Put(a_out, "Code used a pointer to memory that is free (%s address 0x%llX): the object was deleted, and code used it after that.\n", op, target);
+				if (a_target < 0x100000000ull) {
+					Put(a_out, "The value 0x%llX is small for a pointer. It can be a FormID (load order index %02llX) or a number that code used as a pointer "
+							   "by mistake.\n",
+						target, (target >> 24) & 0xFF);
+				}
+				_snprintf_s(a_what, a_whatCap, _TRUNCATE, "The game crashed: code used an object that was already deleted (the memory is free).");
+			} else if (known && info.State == MEM_RESERVE) {
+				Put(a_out, "Code used an address in memory that is reserved but not in use (%s address 0x%llX). The usual cause is an index or a size "
+						   "past the end of a block of memory.\n",
+					op, target);
+				_snprintf_s(a_what, a_whatCap, _TRUNCATE, "The game crashed: code went past the end of a block of memory (a bad index or size).");
+			} else if (known && info.State == MEM_COMMIT && (info.Protect & PAGE_GUARD) != 0) {
+				Put(a_out, "Code touched a guard page (%s address 0x%llX), usually the end of a thread stack.\n", op, target);
+				_snprintf_s(a_what, a_whatCap, _TRUNCATE, "The game crashed: code went past the end of a thread stack.");
+			} else if (known && info.State == MEM_COMMIT && a_kind == 1 &&
+					   (info.Protect & (PAGE_READWRITE | PAGE_WRITECOPY | PAGE_EXECUTE_READWRITE | PAGE_EXECUTE_WRITECOPY)) == 0) {
+				Put(a_out, "Code tried to write to memory that is read-only (address 0x%llX%s%s).\n", target, module ? " in " : "", module ? module->name : "");
+				_snprintf_s(a_what, a_whatCap, _TRUNCATE, "The game crashed: code tried to change memory that is read-only.");
+			} else {
+				Put(a_out, "Code used a pointer to memory that is not valid (%s address 0x%llX). The usual cause is a deleted or damaged object.\n", op, target);
+				_snprintf_s(a_what, a_whatCap, _TRUNCATE, "The game crashed: code used a pointer that is not valid (a deleted or damaged object).");
+			}
+		}
+
+		bool IsGraphicsDriver(const char* a_name)
+		{
+			static const char* const kPrefixes[] = { "nvwgf", "nvd3d", "nvldumd", "nvoglv", "amdx", "atidxx", "atiumd", "atiuxp", "aticfx", "igd10", "igd11",
+				"igd12", "igc64", "igdumdim", "intelocl" };
+			for (const char* p : kPrefixes) {
+				if (_strnicmp(a_name, p, strlen(p)) == 0) {
+					return true;
+				}
+			}
+			return false;
+		}
+
 		void BuildReport(Out& a_out, const EXCEPTION_RECORD& a_record, const CONTEXT& a_context, DWORD a_threadId)
 		{
+			memset(&g_quick, 0, sizeof(g_quick));
+			g_quick.confidence = "low";
+			g_quick.closing = monitor::IsClosing();
+
 			SYSTEMTIME now;
 			GetLocalTime(&now);
 			const ULONGLONG uptime = (GetTickCount64() - g_startTick) / 1000;
@@ -766,6 +872,12 @@ namespace skydiag::crash
 			Put(a_out, "Session length: %llu min %llu s\n", uptime / 60, uptime % 60);
 			if (g_note[0] != '\0') {
 				Put(a_out, "Note: %s\n", g_note);
+			}
+			if (g_save[0] != '\0') {
+				Put(a_out, "Save: %s\n", g_save);
+			}
+			if (g_setup[0] != '\0') {
+				Put(a_out, "Mod setup: %s\n", g_setup);
 			}
 
 			const auto code = a_record.ExceptionCode;
@@ -873,9 +985,18 @@ namespace skydiag::crash
 
 			// Probable cause. This is the last section on purpose.
 			Put(a_out, "\n== PROBABLE CAUSE ==\n");
-			session::AppendMemoryWarning(a_out);
+			const bool memoryFull = session::AppendMemoryWarning(a_out);
+			if (g_quick.closing) {
+				Put(a_out, "The player had chosen to quit or to close the window before this crash: it is a crash while the game closes, not a crash in "
+						   "play. Some DLLs run code while the game unloads them. It is usually harmless, but report it to the author of the DLL named below.\n");
+			}
 
 			const Module* crashModule = frameCount > 0 ? FindModule(frames[0]) : nullptr;
+			if (crashModule) {
+				_snprintf_s(g_quick.group, _TRUNCATE, "%s+%llX %08lX", crashModule->name, static_cast<unsigned long long>(frames[0] - crashModule->base), code);
+			} else {
+				_snprintf_s(g_quick.group, _TRUNCATE, "no-module %08lX", code);
+			}
 			const Module* firstMod = nullptr;
 			int           firstModFrame = -1;
 			for (int i = 0; i < frameCount; ++i) {
@@ -889,30 +1010,26 @@ namespace skydiag::crash
 
 			if (code == EXCEPTION_STACK_OVERFLOW) {
 				Put(a_out, "The thread used all of its stack. The usual cause is a function that calls itself without end.\n");
+				_snprintf_s(g_quick.what, _TRUNCATE, "The game crashed: a thread used all of its stack (usually a function that calls itself without end).");
 			} else if (cpp.valid) {
 				Put(a_out, "Code threw a C++ exception of type %s and no code caught it.\n", cpp.type);
 				if (cpp.hasMessage) {
 					Put(a_out, "The exception message is: %s\n", cpp.message);
 				}
-			} else if (isAccess && accessKind == 8) {
-				Put(a_out, "The processor tried to run code at an address that has no code. The usual cause is a bad function pointer or a deleted object.\n");
-			} else if (isAccess && accessTarget == ~static_cast<std::uintptr_t>(0)) {
-				// The processor does not give the address when a pointer is
-				// not in the valid (canonical) address range. Windows then
-				// reports address 0xFFFFFFFFFFFFFFFF.
-				Put(a_out, "Code used a pointer with a value that cannot be an address. The pointer value is not available. "
-						   "The usual cause is a corrupted pointer or an object that was deleted and then overwritten.\n");
-			} else if (isAccess && accessTarget < 0x10000) {
-				Put(a_out, "Code used a null pointer (%s address 0x%llX).\n", accessKind == 1 ? "write to" : "read from",
-					static_cast<unsigned long long>(accessTarget));
+				_snprintf_s(g_quick.what, _TRUNCATE, "The game crashed: a C++ exception (%s%s%s) that no code caught.", cpp.type, cpp.hasMessage ? ": " : "",
+					cpp.hasMessage ? cpp.message : "");
 			} else if (isAccess) {
-				Put(a_out, "Code used a pointer to memory that is not valid (%s address 0x%llX). The usual cause is a deleted or corrupted object.\n",
-					accessKind == 1 ? "write to" : "read from", static_cast<unsigned long long>(accessTarget));
+				DescribeAccess(a_out, accessKind, accessTarget, g_quick.what, sizeof(g_quick.what));
+			} else {
+				_snprintf_s(g_quick.what, _TRUNCATE, "The game crashed: exception 0x%08lX (%s).", code, ExceptionName(code));
 			}
 
 			if (firstMod && firstModFrame == 0) {
 				Put(a_out, "Most probable source: %s. The crash occurred in the code of this DLL.\n", NameWithMod(*firstMod));
 				Put(a_out, "Confidence: high.\n");
+				strncpy_s(g_quick.suspect, NameWithMod(*firstMod), _TRUNCATE);
+				g_quick.confidence = "high";
+				_snprintf_s(g_quick.tryText, _TRUNCATE, "Update %s. If the crash comes again at the same place, disable it for a test.", firstMod->name);
 			} else if (firstMod) {
 				Put(a_out, "Most probable source: %s. This DLL is the nearest mod DLL on the call stack (frame #%d). It called the code that crashed",
 					NameWithMod(*firstMod), firstModFrame);
@@ -920,17 +1037,30 @@ namespace skydiag::crash
 					Put(a_out, " in %s", crashModule->name);
 				}
 				Put(a_out, ".\nConfidence: medium. The DLL can be the cause, or it can be a hook that only passed bad data along.\n");
+				strncpy_s(g_quick.suspect, NameWithMod(*firstMod), _TRUNCATE);
+				g_quick.confidence = "medium";
+				_snprintf_s(g_quick.tryText, _TRUNCATE, "Update %s. If the crash comes again at the same place, disable it for a test.", firstMod->name);
 			} else if (crashModule && crashModule->isSelf) {
 				Put(a_out, "The crash occurred in %s, which is this diagnostics tool, and no mod DLL is on the call stack.\n", crashModule->name);
 				Put(a_out, "If this was not a test crash, it is a defect in the tool. Report it with this file.\n");
 				Put(a_out, "Confidence: high.\n");
+				_snprintf_s(g_quick.suspect, _TRUNCATE, "%s (this diagnostics tool)", crashModule->name);
+				g_quick.confidence = "high";
+				_snprintf_s(g_quick.tryText, _TRUNCATE, "If this was not a test crash, report it to the author of SkyrimDiagnostics with this file.");
 			} else if (crashModule && crashModule->isGame) {
 				Put(a_out, "The crash occurred in the game executable and no mod DLL is on the call stack.\n");
 				Put(a_out, "The usual cause is bad game data: a mesh, a texture, a plugin record or a save file. No DLL can be named.\n");
 				Put(a_out, "Confidence: low.\n");
+				_snprintf_s(g_quick.suspect, _TRUNCATE, "no mod DLL (the crash is in the game code)");
 			} else if (crashModule) {
 				Put(a_out, "The crash occurred in %s and no mod DLL is on the call stack.\n", crashModule->name);
 				Put(a_out, "Confidence: low.\n");
+				strncpy_s(g_quick.suspect, crashModule->name, _TRUNCATE);
+				if (IsGraphicsDriver(crashModule->name)) {
+					_snprintf_s(g_quick.tryText, _TRUNCATE,
+						"%s is part of the graphics driver. Update the graphics driver. If you use ENB, ReShade or an overlay, turn it off for a test.",
+						crashModule->name);
+				}
 			} else {
 				Put(a_out, "The crash address is not in a loaded module and no mod DLL is on the call stack.\n");
 				Put(a_out, "Confidence: low.\n");
@@ -964,6 +1094,10 @@ namespace skydiag::crash
 						sourceHits[found] = 0;
 					}
 					++sourceHits[found];
+				}
+				if (sourceCount > 0 && g_quick.tryText[0] == '\0') {
+					_snprintf_s(g_quick.tryText, _TRUNCATE,
+						"The objects near the crash come mostly from %s. Look at that plugin first: update it, or disable it for a test with a new save.", sources[0]);
 				}
 				if (sourceCount > 0) {
 					Put(a_out, "\nFiles that these objects come from (nearest to the crash first):\n");
@@ -1012,8 +1146,89 @@ namespace skydiag::crash
 				in.loadedCount = table.count;
 				in.onStack = onStack;
 				in.onStackCount = onStackCount;
-				phostwood::Append(a_out, in);
+				const int found = phostwood::Append(a_out, in);
+				if ((found & phostwood::kFoundPrograms) != 0 && g_quick.confidence[0] == 'l' && g_quick.tryText[0] == '\0') {
+					_snprintf_s(g_quick.tryText, _TRUNCATE,
+						"An antivirus or overlay program has code in the game (see the end of this report). Add the game folder as an exception, or turn it off for a test.");
+				}
 			}
+			if (memoryFull) {
+				_snprintf_s(g_quick.tryText, _TRUNCATE, "Memory was almost full at the crash. Close other programs, check the Windows page file, and use lower "
+														 "texture sizes. Then test again.");
+			}
+			if (g_quick.tryText[0] == '\0') {
+				_snprintf_s(g_quick.tryText, _TRUNCATE, "No mod can be named. Read PROBABLE CAUSE at the end of this file, and note what you did when the game crashed.");
+			}
+		}
+
+		// The crash history: one line for each crash, in crash-history.txt in
+		// the report folder. Returns the number of earlier crashes at the same
+		// place, and the time of the last one. No heap memory.
+		int CrashHistory(const char* a_group, const SYSTEMTIME& a_now, bool a_add, char* a_last, std::size_t a_lastCap)
+		{
+			a_last[0] = '\0';
+			if (a_group[0] == '\0') {
+				return 0;
+			}
+			wchar_t path[800];
+			swprintf_s(path, L"%s\\crash-history.txt", g_reportDir);
+			static char text[512 * 1024];
+			DWORD       read = 0;
+			const HANDLE in = CreateFileW(path, GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE, nullptr, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr);
+			if (in != INVALID_HANDLE_VALUE) {
+				ReadFile(in, text, sizeof(text) - 1, &read, nullptr);
+				CloseHandle(in);
+			}
+			text[read] = '\0';
+			// Lines: "YYYY-MM-DD HH:MM:SS<tab>group<tab>suspect"
+			int         count = 0;
+			const char* line = text;
+			const std::size_t groupLen = strlen(a_group);
+			while (*line) {
+				const char* end = strchr(line, '\n');
+				const char* tab = strchr(line, '\t');
+				if (tab && (!end || tab < end) && strncmp(tab + 1, a_group, groupLen) == 0 && tab[1 + groupLen] == '\t') {
+					++count;
+					const std::size_t n = static_cast<std::size_t>(tab - line);
+					_snprintf_s(a_last, a_lastCap, _TRUNCATE, "%.*s", static_cast<int>(n), line);
+				}
+				if (!end) {
+					break;
+				}
+				line = end + 1;
+			}
+			if (a_add) {
+				const HANDLE out = CreateFileW(path, FILE_APPEND_DATA, FILE_SHARE_READ, nullptr, OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
+				if (out != INVALID_HANDLE_VALUE) {
+					char      entry[700];
+					const int n = _snprintf_s(entry, _TRUNCATE, "%04u-%02u-%02u %02u:%02u:%02u\t%s\t%s\n", a_now.wYear, a_now.wMonth, a_now.wDay, a_now.wHour,
+						a_now.wMinute, a_now.wSecond, a_group, g_quick.suspect);
+					DWORD written = 0;
+					WriteFile(out, entry, static_cast<DWORD>(n > 0 ? n : 0), &written, nullptr);
+					CloseHandle(out);
+				}
+			}
+			return count;
+		}
+
+		// The short answer, at the top of the file.
+		void PutQuick(Out& a_out, int a_repeats, const char* a_last)
+		{
+			Put(a_out, "\n== QUICK ANSWER ==\n");
+			if (g_quick.closing) {
+				Put(a_out, "What happened: the game crashed while it was closing (you had chosen to quit or to close the window). This is not a crash in "
+						   "play. %s\n",
+					g_quick.what);
+			} else {
+				Put(a_out, "What happened: %s\n", g_quick.what);
+			}
+			Put(a_out, "Suspect: %s. Likelihood: %s.\n", g_quick.suspect[0] ? g_quick.suspect : "none can be named", g_quick.confidence);
+			Put(a_out, "Try: %s\n", g_quick.tryText);
+			if (a_repeats > 0) {
+				Put(a_out, "Repeat: a crash at the same place (%s) happened %d time%s before, the last on %s.\n", g_quick.group, a_repeats,
+					a_repeats == 1 ? "" : "s", a_last);
+			}
+			Put(a_out, "The details are below; PROBABLE CAUSE is at the end of this file.\n");
 		}
 
 		void WriteFiles(Out& a_out, EXCEPTION_POINTERS* a_pointers, DWORD a_threadId)
@@ -1026,11 +1241,15 @@ namespace skydiag::crash
 				now.wSecond);
 
 			bool dumpWritten = false;
+			bool dumpByMonitor = false;
 			if (g_writeMinidump) {
 				wchar_t dumpPath[800];
 				swprintf_s(dumpPath, L"%s\\crash-%04u-%02u-%02u-%02u-%02u-%02u.dmp", g_reportDir, now.wYear, now.wMonth, now.wDay, now.wHour,
 					now.wMinute, now.wSecond);
-				const HANDLE dump = CreateFileW(dumpPath, GENERIC_WRITE, 0, nullptr, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
+				// First from outside the game (the monitor process), else from here.
+				dumpByMonitor = monitor::RequestDump(dumpPath, a_pointers, a_threadId, 30000);
+				dumpWritten = dumpByMonitor;
+				const HANDLE dump = dumpWritten ? INVALID_HANDLE_VALUE : CreateFileW(dumpPath, GENERIC_WRITE, 0, nullptr, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
 				if (dump != INVALID_HANDLE_VALUE) {
 					MINIDUMP_EXCEPTION_INFORMATION info{};
 					info.ThreadId = a_threadId;
@@ -1049,15 +1268,35 @@ namespace skydiag::crash
 					}
 				}
 			}
-			Put(a_out, "\nMinidump: %s\n", !g_writeMinidump ? "disabled" : (dumpWritten ? "written (same file name, .dmp)" : "not written (error)"));
+			Put(a_out, "\nMinidump: %s\n", !g_writeMinidump ? "disabled" :
+											   (dumpWritten ? (dumpByMonitor ? "written by the monitor process (same file name, .dmp)" : "written (same file name, .dmp)") :
+															  "not written (error)"));
+
+			// The crash history: a crash while the game closes is not counted.
+			char      last[64];
+			const int repeats = CrashHistory(g_quick.group, now, !g_quick.closing, last, sizeof(last));
+
+			// The file: the first line of the report, the short answer, then the rest.
+			static char quick[4096];
+			Out         q{ quick, sizeof(quick), 0 };
+			quick[0] = '\0';
+			PutQuick(q, repeats, last);
+			const char*       body = a_out.buf;
+			const char*       firstEnd = static_cast<const char*>(memchr(body, '\n', a_out.len));
+			const std::size_t headLen = firstEnd ? static_cast<std::size_t>(firstEnd - body) + 1 : 0;
 
 			const HANDLE file = CreateFileW(path, GENERIC_WRITE, FILE_SHARE_READ, nullptr, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
 			if (file != INVALID_HANDLE_VALUE) {
 				DWORD written = 0;
-				WriteFile(file, a_out.buf, static_cast<DWORD>(a_out.len), &written, nullptr);
+				WriteFile(file, body, static_cast<DWORD>(headLen), &written, nullptr);
+				WriteFile(file, q.buf, static_cast<DWORD>(q.len), &written, nullptr);
+				WriteFile(file, body + headLen, static_cast<DWORD>(a_out.len - headLen), &written, nullptr);
 				FlushFileBuffers(file);
 				CloseHandle(file);
 			}
+			FILETIME crashTime{};
+			GetSystemTimeAsFileTime(&crashTime);
+			monitor::NoteReport(path, g_openReport && !g_quick.closing, (static_cast<std::uint64_t>(crashTime.dwHighDateTime) << 32) | crashTime.dwLowDateTime);
 		}
 
 		// The report is made on this thread, not on the crashed thread. Thus
@@ -1185,7 +1424,7 @@ namespace skydiag::crash
 			std::uintptr_t frames[kMaxFrames];
 		};
 
-		void BuildStallReport(Out& a_out, DWORD a_focusThreadId, DWORD a_stallSeconds)
+		void BuildStallReport(Out& a_out, DWORD a_focusThreadId, DWORD a_stallSeconds, StallKind a_kind)
 		{
 			constexpr int   kMaxStallThreads = 256;
 			constexpr DWORD kSampleMs = 250;
@@ -1197,14 +1436,25 @@ namespace skydiag::crash
 
 			// This first output also makes sure that the C runtime data of
 			// this thread exists before other threads are suspended.
-			Put(a_out, "SkyrimDiagnostics stall report\n");
+			Put(a_out, a_kind == StallKind::kLoadingScreen ? "SkyrimDiagnostics infinite loading screen report\n" : "SkyrimDiagnostics stall report\n");
 			Put(a_out, "Tool version: %s\n", g_toolVersion);
 			Put(a_out, "Game: %s\n", g_gameVersion);
 			Put(a_out, "Platform: %s\n", g_platform);
 			Put(a_out, "Time: %04u-%02u-%02u %02u:%02u:%02u (local)\n", now.wYear, now.wMonth, now.wDay, now.wHour, now.wMinute, now.wSecond);
 			Put(a_out, "Session length: %llu min %llu s\n", uptime / 60, uptime % 60);
-			Put(a_out, "\nThe game update thread (%lu) did not respond for %lu s.\n", a_focusThreadId, a_stallSeconds);
-			Put(a_out, "This can be a freeze. It can also be a very long load.\n");
+			if (g_save[0] != '\0') {
+				Put(a_out, "Save: %s\n", g_save);
+			}
+			if (g_setup[0] != '\0') {
+				Put(a_out, "Mod setup: %s\n", g_setup);
+			}
+			if (a_kind == StallKind::kLoadingScreen) {
+				Put(a_out, "\nA loading screen is open for %lu s, and the game read no data from the disk in the last 30 s.\n", a_stallSeconds);
+				Put(a_out, "The load does not go on: this is an infinite loading screen.\n");
+			} else {
+				Put(a_out, "\nThe game update thread (%lu) did not respond for %lu s.\n", a_focusThreadId, a_stallSeconds);
+				Put(a_out, "This can be a freeze. It can also be a very long load.\n");
+			}
 
 			// Thread list: the focus thread first.
 			const auto& table = g_threadTables[g_activeThreadTable.load(std::memory_order_acquire)];
@@ -1288,6 +1538,52 @@ namespace skydiag::crash
 				return;
 			}
 			const auto& focus = threads[0];
+
+			// What the game update thread waits for: an error dialog, the
+			// graphics driver or the GPU, or a lock that a different thread holds.
+			Put(a_out, "\nWait analysis of the game update thread:\n");
+			const int dialogs = monitor::AppendDialogs(a_out, GetCurrentProcessId());
+			std::uint32_t owner = 0;
+			monitor::AppendWaitChain(a_out, focus.id, &owner);
+			const Module* driver = nullptr;
+			bool          present = false;
+			for (int i = 0; i < focus.frameCount && i < 12; ++i) {
+				const Module* m = FindModule(focus.frames[i]);
+				if (!m) {
+					continue;
+				}
+				if (!driver && IsGraphicsDriver(m->name)) {
+					driver = m;
+				}
+				present = present || _stricmp(m->name, "dxgi.dll") == 0 || _stricmp(m->name, "d3d11.dll") == 0;
+			}
+			if (dialogs > 0) {
+				Put(a_out, "A dialog window of the game is open (above). A DLL showed an error message and the game waits for it. The message usually "
+						   "names the DLL or the problem.\nConfidence: high.\n\n");
+			} else if (driver && focus.cpuPercent < 50) {
+				Put(a_out, "The game update thread waits inside the graphics driver (%s). The usual causes: the GPU is busy or stopped (driver "
+						   "timeout), a driver problem, or ENB, ReShade or an overlay.\n\n",
+					driver->name);
+			} else if (present && focus.cpuPercent < 50) {
+				Put(a_out, "The game update thread waits in Direct3D (dxgi.dll or d3d11.dll): it waits for the GPU to show a frame.\n\n");
+			}
+			if (owner != 0) {
+				for (int i = 0; i < count; ++i) {
+					if (threads[i].id != owner) {
+						continue;
+					}
+					const Module* ownerMod = nullptr;
+					for (int f = 0; f < threads[i].frameCount && !ownerMod; ++f) {
+						const Module* m = FindModule(threads[i].frames[f]);
+						if (IsModLibrary(m)) {
+							ownerMod = m;
+						}
+					}
+					Put(a_out, "The game update thread waits for thread %lu (call stack above)%s%s.\n\n", static_cast<unsigned long>(owner),
+						ownerMod ? ", which is in the code of " : "", ownerMod ? NameWithMod(*ownerMod) : "");
+				}
+			}
+
 			if (focus.cpuPercent >= 50) {
 				Put(a_out, "The game update thread is running code (processor use %d%%). It is in a loop that does not end, or in a very long operation.\n",
 					focus.cpuPercent);
@@ -1358,6 +1654,12 @@ namespace skydiag::crash
 		return true;
 	}
 
+	std::uint64_t ProcessReadBytes()
+	{
+		IO_COUNTERS io{};
+		return GetProcessIoCounters(GetCurrentProcess(), &io) ? io.ReadTransferCount : 0;
+	}
+
 	bool IsProcessForeground()
 	{
 		const HWND window = GetForegroundWindow();
@@ -1374,7 +1676,17 @@ namespace skydiag::crash
 		strncpy_s(g_note, a_note ? a_note : "", _TRUNCATE);
 	}
 
-	bool WriteStallReport(std::uint32_t a_focusThreadId, std::uint32_t a_stallSeconds)
+	void SetSave(const char* a_text)
+	{
+		strncpy_s(g_save, a_text ? a_text : "", _TRUNCATE);
+	}
+
+	void SetSetup(const char* a_text)
+	{
+		strncpy_s(g_setup, a_text ? a_text : "", _TRUNCATE);
+	}
+
+	bool WriteStallReport(std::uint32_t a_focusThreadId, std::uint32_t a_stallSeconds, StallKind a_kind)
 	{
 		if (!g_goEvent || g_inCrash || InterlockedCompareExchange(&g_inStall, 1, 0) != 0) {
 			return false;
@@ -1383,13 +1695,22 @@ namespace skydiag::crash
 		Out out{ g_stallReport, kReportCap, 0 };
 		g_stallReport[0] = '\0';
 		session::NoteStall();
-		BuildStallReport(out, a_focusThreadId, a_stallSeconds);
+		BuildStallReport(out, a_focusThreadId, a_stallSeconds, a_kind);
 
 		SYSTEMTIME now;
 		GetLocalTime(&now);
-		wchar_t path[800];
-		swprintf_s(path, L"%s\\stall-%04u-%02u-%02u-%02u-%02u-%02u.log", g_reportDir, now.wYear, now.wMonth, now.wDay, now.wHour, now.wMinute,
+		const wchar_t* kind = a_kind == StallKind::kLoadingScreen ? L"loading" : L"stall";
+		wchar_t        path[800];
+		swprintf_s(path, L"%s\\%s-%04u-%02u-%02u-%02u-%02u-%02u.log", g_reportDir, kind, now.wYear, now.wMonth, now.wDay, now.wHour, now.wMinute,
 			now.wSecond);
+		if (g_writeMinidump) {
+			// A dump of the frozen game, from the monitor process.
+			wchar_t dumpPath[800];
+			swprintf_s(dumpPath, L"%s\\%s-%04u-%02u-%02u-%02u-%02u-%02u.dmp", g_reportDir, kind, now.wYear, now.wMonth, now.wDay, now.wHour,
+				now.wMinute, now.wSecond);
+			const bool dump = monitor::RequestDump(dumpPath, nullptr, a_focusThreadId, 60000);
+			Put(out, "\nMinidump: %s\n", dump ? "written by the monitor process (same file name, .dmp)" : "not written (the monitor process is not running)");
+		}
 
 		bool         ok = false;
 		const HANDLE file = CreateFileW(path, GENERIC_WRITE, FILE_SHARE_READ, nullptr, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
@@ -1493,6 +1814,7 @@ namespace skydiag::crash
 		strncpy_s(g_platform, a_config.platform ? a_config.platform : "", _TRUNCATE);
 		g_mainThreadId = a_config.mainThreadId;
 		g_writeMinidump = a_config.writeMinidump;
+		g_openReport = a_config.openReport;
 		g_startTick = GetTickCount64();
 
 		g_goEvent = CreateEventW(nullptr, FALSE, FALSE, nullptr);
