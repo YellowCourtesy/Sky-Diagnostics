@@ -16,6 +16,7 @@
 #include "Report.h"
 #include "Settings.h"
 #include "crash/CrashHandler.h"
+#include "crash/HookScan.h"
 #include "crash/Monitor.h"
 #include "crash/Phostwood.h"
 #include "crash/Profiler.h"
@@ -502,9 +503,16 @@ namespace
 		std::uint64_t lastReadBytes = 0;
 		auto       lastReadChange = Clock::now();
 
+		int secondsSinceHookScan = 0;
 		for (;;) {
 			std::this_thread::sleep_for(1s);
 			skydiag::monitor::Beat();
+
+			// DLLs can add hooks to the game code at any time: scan again each minute.
+			if (g_dataLoaded.load() && !g_loading.load() && ++secondsSinceHookScan >= 60) {
+				secondsSinceHookScan = 0;
+				skydiag::crash::hooks::Scan();
+			}
 
 			// A normal game exit sets this flag. The session record must
 			// know it, or the next start reports an unclean exit.
@@ -868,6 +876,7 @@ namespace
 		case SKSE::MessagingInterface::kDataLoaded:
 			SKSE::log::info("Game data is loaded.");
 			SKSE::log::info("Game window close requests: {}.", skydiag::monitor::WatchWindowClose() ? "watched" : "not watched (window not found)");
+			SKSE::log::info("Hooks of DLLs in the game code: {}.", skydiag::crash::hooks::Scan());
 			// All plugins are loaded now: AbyssusLib can be found. Group "Diag", at the top.
 			abyssus::SetSourceInfo("SkyrimDiagnostics", "Diag", 100);
 			// All plugins are loaded now: AbyssusLib can be found.

@@ -63,6 +63,8 @@ add_library(
 	skydiag_crash STATIC
 	src/crash/CrashHandler.cpp
 	src/crash/CrashHandler.h
+	src/crash/HookScan.cpp
+	src/crash/HookScan.h
 	src/crash/MemTrack.cpp
 	src/crash/MemTrack.h
 	src/crash/Monitor.cpp

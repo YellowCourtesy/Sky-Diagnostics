@@ -1,5 +1,6 @@
 #include "CrashHandler.h"
 
+#include "HookScan.h"
 #include "MemTrack.h"
 #include "Monitor.h"
 #include "Phostwood.h"
@@ -91,6 +92,20 @@ namespace skydiag::crash
 		};
 		Quick g_quick;
 		bool  g_openReport = true;
+
+		// Exceptions that code caught: access violations and the like that did
+		// not end the game. A vectored handler sees them first. Many of them can
+		// mean that a DLL hides crashes.
+		struct Caught
+		{
+			ULONGLONG      tick;
+			std::uintptr_t address;
+			DWORD          code;
+			DWORD          threadId;
+		};
+		constexpr int kCaughtRing = 32;
+		Caught        g_caught[kCaughtRing];
+		volatile LONG g_caughtCount = 0;
 
 		char g_report[kReportCap];
 		char g_stallReport[kReportCap];
@@ -769,6 +784,8 @@ namespace skydiag::crash
 
 		// -------------------------------------------------------------- report
 
+		void AppendCaught(Out& a_out, std::uintptr_t a_crashAddress);
+
 		// The type of an access violation, in plain words. Uses the state of
 		// the memory at the address.
 		void DescribeAccess(Out& a_out, ULONG_PTR a_kind, std::uintptr_t a_target, char* a_what, std::size_t a_whatCap)
@@ -978,6 +995,7 @@ namespace skydiag::crash
 				Put(a_out, "0x%016llX  %-48s%s%s%s\n", static_cast<unsigned long long>(m.base), m.name, ModuleTag(m), mod[0] ? "  mod: " : "", mod);
 			}
 
+			hooks::AppendSummary(a_out);
 			profiler::Append(a_out);
 			memtrack::Append(a_out);
 			AppendSections(a_out);
@@ -1020,6 +1038,9 @@ namespace skydiag::crash
 					cpp.hasMessage ? cpp.message : "");
 			} else if (isAccess) {
 				DescribeAccess(a_out, accessKind, accessTarget, g_quick.what, sizeof(g_quick.what));
+				if (accessKind == 8 && hooks::AppendTo(a_out, accessTarget) > 0) {
+					strncat_s(g_quick.what, " A hook of a DLL went to that place (see below).", _TRUNCATE);
+				}
 			} else {
 				_snprintf_s(g_quick.what, _TRUNCATE, "The game crashed: exception 0x%08lX (%s).", code, ExceptionName(code));
 			}
@@ -1065,6 +1086,17 @@ namespace skydiag::crash
 				Put(a_out, "The crash address is not in a loaded module and no mod DLL is on the call stack.\n");
 				Put(a_out, "Confidence: low.\n");
 			}
+
+			if (crashModule && crashModule->isGame) {
+				char      head[] = "\nHooks of DLLs near the crash place in the game code:\n";
+				const std::size_t mark = a_out.len;
+				Put(a_out, "%s", head);
+				if (hooks::AppendNear(a_out, frames[0]) == 0) {
+					a_out.len = mark;
+					a_out.buf[mark] = '\0';
+				}
+			}
+			AppendCaught(a_out, address);
 
 			if (classes.count > 0) {
 				Put(a_out, "\nObjects found near the crash (registers first, then stack):\n");
@@ -1322,6 +1354,67 @@ namespace skydiag::crash
 
 				SetEvent(g_doneEvent);
 			}
+		}
+
+		LONG CALLBACK CountException(EXCEPTION_POINTERS* a_pointers)
+		{
+			const DWORD code = a_pointers->ExceptionRecord->ExceptionCode;
+			if (code != EXCEPTION_ACCESS_VIOLATION && code != EXCEPTION_ILLEGAL_INSTRUCTION && code != EXCEPTION_INT_DIVIDE_BY_ZERO &&
+				code != EXCEPTION_PRIV_INSTRUCTION && code != EXCEPTION_ARRAY_BOUNDS_EXCEEDED) {
+				return EXCEPTION_CONTINUE_SEARCH;
+			}
+			if (g_inCrash || g_inStall) {
+				return EXCEPTION_CONTINUE_SEARCH;  // the report code reads memory that can be bad
+			}
+			const LONG index = InterlockedIncrement(&g_caughtCount) - 1;
+			Caught&    c = g_caught[index % kCaughtRing];
+			c.tick = GetTickCount64();
+			c.address = reinterpret_cast<std::uintptr_t>(a_pointers->ExceptionRecord->ExceptionAddress);
+			c.code = code;
+			c.threadId = GetCurrentThreadId();
+			return EXCEPTION_CONTINUE_SEARCH;
+		}
+
+		// The exceptions that code caught before this crash (the last one is
+		// the crash itself if it is at a_crashAddress).
+		void AppendCaught(Out& a_out, std::uintptr_t a_crashAddress)
+		{
+			LONG total = g_caughtCount;
+			if (total > 0 && g_caught[(total - 1) % kCaughtRing].address == a_crashAddress) {
+				--total;  // the crash itself
+			}
+			// Modules that hide crashes on purpose, and other crash handlers.
+			const auto& table = Modules();
+			for (int i = 0; i < table.count; ++i) {
+				char lower[96];
+				strncpy_s(lower, table.items[i].name, _TRUNCATE);
+				_strlwr_s(lower);
+				if (strstr(lower, "crashguard") != nullptr) {
+					Put(a_out, "\n%s is loaded. It hides crashes: the game goes on after an error, and the real cause shows later at a different place. "
+							   "Disable it while you look for the cause of crashes.\n",
+						table.items[i].name);
+				}
+			}
+			const auto previous = reinterpret_cast<std::uintptr_t>(g_previousFilter.load());
+			if (previous) {
+				if (const Module* m = FindModule(previous); m && !m->isSystem) {
+					Put(a_out, "\nA different crash handler is installed: %s. It runs after this tool.\n", m->name);
+				}
+			}
+			if (total <= 0) {
+				return;
+			}
+			Put(a_out, "\nErrors that code caught before this crash (the game went on after them): %ld. The last ones:\n", static_cast<long>(total));
+			const ULONGLONG now = GetTickCount64();
+			const LONG      first = total > 8 ? total - 8 : 0;
+			for (LONG i = first; i < total; ++i) {
+				const Caught& c = g_caught[i % kCaughtRing];
+				Put(a_out, "  %llu s before the crash: 0x%08lX %s at ", (now - c.tick) / 1000, c.code, ExceptionName(c.code));
+				PutAddress(a_out, c.address);
+				Put(a_out, ", thread %lu\n", c.threadId);
+			}
+			Put(a_out, "Code that catches such errors and goes on can hide the real cause of a crash. If the same DLL is named above many times, "
+					   "update it or disable it for a test.\n");
 		}
 
 		LONG WINAPI Filter(EXCEPTION_POINTERS* a_pointers)
@@ -1814,6 +1907,7 @@ namespace skydiag::crash
 		strncpy_s(g_platform, a_config.platform ? a_config.platform : "", _TRUNCATE);
 		g_mainThreadId = a_config.mainThreadId;
 		g_writeMinidump = a_config.writeMinidump;
+		AddVectoredExceptionHandler(1, &CountException);
 		g_openReport = a_config.openReport;
 		g_startTick = GetTickCount64();
 
