@@ -13,7 +13,7 @@ fix problems.
 | Crash report with probable cause, minidump, game data (forms, plugin files) | Works, tested in the game (Proton) |
 | Freeze detection and stall report | Works, tested in the game (Proton) |
 | Unclean exit report (kill, out of memory, fail fast) | Works, tested in the game (Proton) |
-| Overlay: frame data, frame rate limit, input latency estimate, memory, video memory | Works, tested in the game (Proton) |
+| Overlay: frame data, frame rate limit, input latency estimate, memory, video memory | Works, tested in the game (Proton). Now drawn by AbyssusLib: not tested |
 | Profiler: processor time by thread, module and mod DLL | Works, tested in the game (Proton) |
 | Papyrus sampler: running and waiting script stacks by script | Works, tested in the game (Proton) |
 | Live warnings with the most probable cause | Works, tested in the game (Proton) with the fault test plugin |
@@ -53,7 +53,10 @@ defaults, change that file and build again.
 
 ## Use
 
-- `F10` changes the view: all data and warnings, warnings only, off. When the view changes to off, a text shows for 10 seconds.
+- The overlay needs AbyssusLib 2 or later (a separate SKSE plugin). AbyssusLib
+  draws all windows and notes of the tool. Without AbyssusLib, the overlay
+  does not show, a message box tells this at the start, and the reports work.
+- `F10` changes the view: all data and warnings, warnings only, off. When the view changes to off, a note shows for 10 seconds.
 - The log file is `SkyrimDiagnostics/SkyrimDiagnostics.log` in the SKSE log folder.
 - Settings are in `Data/SKSE/Plugins/SkyrimDiagnostics.ini` (view at start,
   view key, warning limits, sampler switches). The file has a comment for
@@ -104,9 +107,10 @@ State: not tested in MO2.
   end of the Present call of that frame, plus the frames in the GPU queue.
   The display is not included. If the input time is not available, the
   overlay shows an estimate and says so.
-- **Overlay target** (`OverlayTarget` in the settings file): the overlay is
-  drawn on the render target of the game UI, so that Community Shaders
-  (upscaling, frame generation, HDR) handles it as it handles the game UI.
+- **Overlay target**: AbyssusLib draws the overlay on the render target of the
+  game UI, so that Community Shaders (upscaling, frame generation, HDR)
+  handles it as it handles the game UI. The `OverlayTarget` setting is
+  removed; an old settings file with it still loads.
 
 ## Tests in the game
 
@@ -137,8 +141,9 @@ State: not tested in MO2.
 
 ## Install
 
-1. Install [SKSE64](https://skse.silverlock.org/) and
-   [Address Library for SKSE Plugins](https://www.nexusmods.com/skyrimspecialedition/mods/32444).
+1. Install [SKSE64](https://skse.silverlock.org/),
+   [Address Library for SKSE Plugins](https://www.nexusmods.com/skyrimspecialedition/mods/32444)
+   and AbyssusLib (for the overlay).
 2. Download the `SkyrimDiagnostics` artifact from the latest run of the
    Build workflow (Actions tab).
 3. Install the archive as a mod in MO2.

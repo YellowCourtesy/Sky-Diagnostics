@@ -88,12 +88,14 @@ add_library(
 	src/Settings.h
 )
 
-# Present hook and overlay: Direct3D 11 and Dear ImGui, no CommonLibSSE.
-find_package(imgui CONFIG REQUIRED)
 target_include_directories(skydiag_stats PRIVATE "${CMAKE_CURRENT_BINARY_DIR}/generated")
 
-add_library(skydiag_gfx STATIC src/gfx/Overlay.cpp src/gfx/Overlay.h)
-target_link_libraries(skydiag_gfx PUBLIC skydiag_stats skydiag_crash imgui::imgui d3d11.lib dxgi.lib)
+# Present hook (frame measurement) and overlay content: Direct3D 11, no
+# CommonLibSSE, no Dear ImGui. AbyssusLib (a separate mod) draws the overlay
+# windows; src/Abyssus/API.h is its header, copied from AbyssusLib. Nothing
+# to link: the header finds AbyssusLib.dll at runtime.
+add_library(skydiag_gfx STATIC src/gfx/Overlay.cpp src/gfx/Overlay.h src/Abyssus/API.h)
+target_link_libraries(skydiag_gfx PUBLIC skydiag_stats skydiag_crash d3d11.lib dxgi.lib)
 
 if(MSVC)
 	target_compile_options(skydiag_stats PRIVATE /W4 /permissive- /utf-8 /Zi)

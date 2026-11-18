@@ -93,12 +93,6 @@ namespace skydiag
 				result.papyrusTime = number != 0;
 			} else if (key == "memorybydll" && isNumber) {
 				result.memoryByDll = number != 0;
-			} else if (key == "overlaytarget") {
-				if (value == "game") {
-					result.overlayOnGameTarget = true;
-				} else if (value == "swapchain") {
-					result.overlayOnGameTarget = false;
-				}
 			} else if (key == "stallseconds" && isNumber && number >= 5 && number <= 3600) {
 				result.stallSeconds = static_cast<int>(number);
 			}

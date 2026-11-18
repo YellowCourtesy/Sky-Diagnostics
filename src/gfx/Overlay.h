@@ -1,7 +1,8 @@
 #pragma once
 
 // Present hook, frame measurement and the in-game overlay.
-// Direct3D 11 and Dear ImGui only: no CommonLibSSE.
+// Direct3D 11 only: no CommonLibSSE, no Dear ImGui. AbyssusLib draws the
+// overlay windows (Abyssus/API.h).
 
 namespace skydiag::overlay
 {
@@ -13,10 +14,6 @@ namespace skydiag::overlay
 		float fpsBelow{ 57.0f };
 		bool  profiler{ true };
 		bool  memoryByDll{ true };
-		// Gives the render target view (ID3D11RenderTargetView*) that the
-		// game uses for its menus and HUD now, or nullptr. If set, the
-		// overlay is drawn on it. If not, on the swap chain image.
-		void* (*gameTarget)(){ nullptr };
 		// The [[Layout]] part of the configuration file, or nullptr.
 		const char* layoutText{ nullptr };
 	};
@@ -26,8 +23,9 @@ namespace skydiag::overlay
 	// Call one time. Returns false on failure.
 	bool Install(void* a_swapChain, const char* a_version, const Options& a_options);
 
-	// Shows a text in the warnings box for a_seconds. Safe from all
-	// threads. A new note replaces one that is not shown yet.
+	// Shows a text in the note box of AbyssusLib for a_seconds, if the view
+	// is not "off". Safe from all threads. A new note replaces the note
+	// that shows.
 	void PostNote(const char* a_text, float a_seconds);
 
 	// Values that the plugin reads from the game. 0 = not known.

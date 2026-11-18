@@ -1,0 +1,223 @@
+#pragma once
+
+// AbyssusLib API for other SKSE plugins. Copy this one header into your plugin.
+// It links nothing: it finds AbyssusLib.dll at runtime. If AbyssusLib is not
+// installed, IsAvailable() is false and the calls do nothing.
+//
+// Needs CommonLibSSE-NG (it uses REX::W32 to find the DLL), or windows.h
+// included before this header (for code without CommonLibSSE).
+//
+// All functions are safe from all threads.
+
+#include <cstdarg>
+#include <cstdint>
+#include <cstdio>
+#include <deque>
+#include <string>
+#include <vector>
+
+#if defined(_WINDOWS_)
+#	define ABYSSUS_GET_MODULE(a_name) ::GetModuleHandleW(a_name)
+#	define ABYSSUS_GET_PROC(a_module, a_name) ::GetProcAddress(a_module, a_name)
+#else
+#	include "REX/W32/KERNEL32.h"
+#	define ABYSSUS_GET_MODULE(a_name) REX::W32::GetModuleHandleW(a_name)
+#	define ABYSSUS_GET_PROC(a_module, a_name) REX::W32::GetProcAddress(a_module, a_name)
+#endif
+
+// Window data. Plain C types: the layout must not change in an API version.
+extern "C"
+{
+	// a == 0: the default text color.
+	struct AbyssusColor
+	{
+		float r;
+		float g;
+		float b;
+		float a;
+	};
+
+	enum AbyssusItemType
+	{
+		kAbyssusText = 0,       // text; the next text goes on the same line
+		kAbyssusNewLine = 1,    // ends the line
+		kAbyssusSeparator = 2,  // a horizontal line
+		kAbyssusGraph = 3,      // a line graph of values
+	};
+
+	struct AbyssusItem
+	{
+		int          type;        // AbyssusItemType
+		AbyssusColor color;       // text and graph color
+		const char*  text;        // kAbyssusText
+		const float* values;      // kAbyssusGraph
+		int          valueCount;  // kAbyssusGraph
+		float        graphMin;    // kAbyssusGraph: value at the bottom
+		float        graphMax;    // kAbyssusGraph: value at the top
+		float        width;       // kAbyssusGraph: size in pixels
+		float        height;
+	};
+
+	struct AbyssusWindow
+	{
+		float              x;                // top left corner, pixels
+		float              y;
+		const char*        below;            // id of a window of the same source, or nullptr. If that
+		                                     // window shows, this window goes below it (x stays).
+		float              backgroundAlpha;  // 0 to 1
+		float              wrapWidth;        // text wrap, pixels from the left screen edge; 0 = no wrap
+		const AbyssusItem* items;
+		int                itemCount;
+	};
+}
+
+namespace abyssus
+{
+	inline constexpr int kApiVersion = 2;
+
+	enum class Level : int
+	{
+		kInfo = 0,
+		kWarning = 1,
+		kError = 2,
+	};
+
+	namespace detail
+	{
+		using VersionFn = int (*)();
+		using NotifyFn = void (*)(const char* a_source, const char* a_text, float a_seconds, int a_level);
+		using StatusFn = void (*)(const char* a_source, const char* a_text);
+		using WindowFn = void (*)(const char* a_source, const char* a_id, const AbyssusWindow* a_window);
+
+		struct Api
+		{
+			VersionFn version{ nullptr };
+			NotifyFn  notify{ nullptr };
+			StatusFn  status{ nullptr };
+			WindowFn  window{ nullptr };
+		};
+
+		inline const Api& Get()
+		{
+			static const Api api = [] {
+				Api a{};
+				if (auto module = ABYSSUS_GET_MODULE(L"AbyssusLib.dll")) {
+					a.version = reinterpret_cast<VersionFn>(ABYSSUS_GET_PROC(module, "AbyssusAPI_Version"));
+					const int version = a.version ? a.version() : 0;
+					if (version >= 1) {
+						a.notify = reinterpret_cast<NotifyFn>(ABYSSUS_GET_PROC(module, "AbyssusAPI_Notify"));
+						a.status = reinterpret_cast<StatusFn>(ABYSSUS_GET_PROC(module, "AbyssusAPI_SetStatus"));
+					}
+					if (version >= 2) {
+						a.window = reinterpret_cast<WindowFn>(ABYSSUS_GET_PROC(module, "AbyssusAPI_SetWindow"));
+					}
+				}
+				return a;
+			}();
+			return api;
+		}
+	}
+
+	// True if AbyssusLib.dll is loaded (notes and status lines). Call it at or
+	// after SKSE kPostLoad (all plugins are loaded then).
+	inline bool IsAvailable() { return detail::Get().notify != nullptr; }
+
+	// True if AbyssusLib.dll is loaded and has windows (API version 2 or later).
+	inline bool HasWindows() { return detail::Get().window != nullptr; }
+
+	// Shows a note for a_seconds. All plugins share one note: a new note
+	// replaces the note that shows (the same rule as SkyrimDiagnostics), so a
+	// note is never old.
+	inline void Notify(const char* a_source, const char* a_text, float a_seconds = 5.0f, Level a_level = Level::kInfo)
+	{
+		if (const auto fn = detail::Get().notify)
+			fn(a_source, a_text, a_seconds, static_cast<int>(a_level));
+	}
+
+	// A permanent status line for a_source, shown until it is changed or
+	// cleared. An empty or null a_text clears it.
+	inline void SetStatus(const char* a_source, const char* a_text)
+	{
+		if (const auto fn = detail::Get().status)
+			fn(a_source, a_text);
+	}
+
+	// Shows a window, or changes its content. AbyssusLib copies the data: it
+	// can be released after the call. The window shows until it is changed or
+	// cleared. A null a_window clears it. a_id is unique in a_source.
+	inline void SetWindow(const char* a_source, const char* a_id, const AbyssusWindow* a_window)
+	{
+		if (const auto fn = detail::Get().window)
+			fn(a_source, a_id, a_window);
+	}
+
+	inline void ClearWindow(const char* a_source, const char* a_id) { SetWindow(a_source, a_id, nullptr); }
+
+	// Makes the content of a window. Use one builder for each window and
+	// call Clear() before each new content.
+	class WindowBuilder
+	{
+	public:
+		static constexpr AbyssusColor kDefault{ 0.0f, 0.0f, 0.0f, 0.0f };
+
+		void Clear()
+		{
+			_items.clear();
+			_texts.clear();
+			_values.clear();
+		}
+
+		// Text; the next text goes on the same line.
+		void Text(const AbyssusColor& a_color, const char* a_fmt, ...)
+		{
+			char    text[512];
+			va_list args;
+			va_start(args, a_fmt);
+			std::vsnprintf(text, sizeof(text), a_fmt, args);
+			va_end(args);
+			_texts.emplace_back(text);
+			Add(kAbyssusText, a_color).text = _texts.back().c_str();
+		}
+
+		void NewLine() { Add(kAbyssusNewLine, kDefault); }
+
+		void Separator() { Add(kAbyssusSeparator, kDefault); }
+
+		void Graph(const float* a_values, int a_count, float a_min, float a_max, float a_width, float a_height, const AbyssusColor& a_color = kDefault)
+		{
+			_values.emplace_back(a_values, a_values + (a_count > 0 ? a_count : 0));
+			auto& item = Add(kAbyssusGraph, a_color);
+			item.values = _values.back().data();
+			item.valueCount = static_cast<int>(_values.back().size());
+			item.graphMin = a_min;
+			item.graphMax = a_max;
+			item.width = a_width;
+			item.height = a_height;
+		}
+
+		bool Empty() const { return _items.empty(); }
+
+		// The window data. It is valid until the next change of the builder.
+		AbyssusWindow Make(float a_x, float a_y, float a_backgroundAlpha = 0.6f, float a_wrapWidth = 0.0f, const char* a_below = nullptr) const
+		{
+			return AbyssusWindow{ a_x, a_y, a_below, a_backgroundAlpha, a_wrapWidth, _items.data(), static_cast<int>(_items.size()) };
+		}
+
+	private:
+		AbyssusItem& Add(int a_type, const AbyssusColor& a_color)
+		{
+			AbyssusItem item{};
+			item.type = a_type;
+			item.color = a_color;
+			_items.push_back(item);
+			return _items.back();
+		}
+
+		std::vector<AbyssusItem>        _items;
+		std::deque<std::string>         _texts;   // deque: the c_str() pointers stay valid when more are added
+		std::deque<std::vector<float>>  _values;
+	};
+}
+
+#undef ABYSSUS_GET_MODULE
+#undef ABYSSUS_GET_PROC

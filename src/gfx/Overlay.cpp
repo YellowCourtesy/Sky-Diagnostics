@@ -7,9 +7,6 @@
 #include <d3d11.h>
 #include <dxgi1_4.h>
 
-#include <imgui.h>
-#include <imgui_impl_dx11.h>
-
 #include <algorithm>
 #include <atomic>
 #include <cstdarg>
@@ -21,6 +18,7 @@
 #include <vector>
 #include <iterator>
 
+#include "../Abyssus/API.h"
 #include "../crash/MemTrack.h"
 #include "../crash/Profiler.h"
 #include "../crash/Session.h"
@@ -31,10 +29,14 @@
 #include "Advisor.h"
 #include "FrameStats.h"
 
+// The windows of the overlay go through AbyssusLib (Abyssus/API.h): this file
+// makes their content, AbyssusLib draws it. This file has no Dear ImGui.
+
 namespace skydiag::overlay
 {
 	namespace
 	{
+		constexpr const char* kSource = "SkyrimDiagnostics";
 		using PresentFn = HRESULT(STDMETHODCALLTYPE*)(IDXGISwapChain*, UINT, UINT);
 
 		constexpr int kPresentSlot = 8;  // position of Present in the IDXGISwapChain function table
@@ -52,7 +54,7 @@ namespace skydiag::overlay
 		bool                 g_ready = false;
 		bool                 g_failed = false;
 		// The view key changes the view: all data and warnings, warnings
-		// only, nothing. A text shows for 10 seconds when the view changes
+		// only, nothing. A note shows for 10 seconds when the view changes
 		// to "nothing".
 		enum class View
 		{
@@ -60,12 +62,9 @@ namespace skydiag::overlay
 			kWarnings,
 			kOff,
 		};
-		View          g_view = View::kAll;
-		bool          g_keyWasDown = false;
-		// The text that shows for 10 seconds after the view changes to "off".
-		LARGE_INTEGER g_offNoteStart{};
-		bool          g_offNote = false;
-		LARGE_INTEGER g_readyTime{};  // when the first frame was shown
+		std::atomic<View> g_view{ View::kAll };  // read on all threads, changed on the render thread
+		bool              g_keyWasDown = false;
+		LARGE_INTEGER     g_readyTime{};  // when the first frame was shown
 
 		LARGE_INTEGER g_frequency{};
 		LARGE_INTEGER g_lastPresentStart{};
@@ -165,13 +164,6 @@ namespace skydiag::overlay
 		std::atomic<bool>     g_pluginWarningTime{ true };
 		bool                  g_settled = false;    // render thread only
 
-		// A note from a different thread, for the warnings box.
-		SRWLOCK       g_noteLock = SRWLOCK_INIT;
-		char          g_pendingNote[260] = "";
-		float         g_pendingNoteSeconds = 0.0f;
-		char          g_note[260] = "";
-		LARGE_INTEGER g_noteStart{};
-		float         g_noteSeconds = 0.0f;
 		LARGE_INTEGER g_lastVramCheck{};
 		std::uint64_t g_lastThreadCpu100ns = 0;
 		LARGE_INTEGER g_lastLongFrameEvent{};
@@ -221,18 +213,6 @@ namespace skydiag::overlay
 			queryDesc.Query = D3D11_QUERY_EVENT;
 			for (auto& query : g_queries) {
 				g_device->CreateQuery(&queryDesc, &query);
-			}
-
-			IMGUI_CHECKVERSION();
-			ImGui::CreateContext();
-			ImGuiIO& io = ImGui::GetIO();
-			io.IniFilename = nullptr;  // no settings file
-			io.LogFilename = nullptr;
-			io.ConfigFlags |= ImGuiConfigFlags_NoMouseCursorChange;
-			ImGui::StyleColorsDark();
-			ImGui::GetStyle().WindowRounding = 4.0f;
-			if (!ImGui_ImplDX11_Init(g_device, g_context)) {
-				return false;
 			}
 
 			QueryPerformanceFrequency(&g_frequency);
@@ -286,18 +266,14 @@ namespace skydiag::overlay
 		{
 			const bool down = (GetAsyncKeyState(g_options.toggleKey) & 0x8000) != 0;
 			if (down && !g_keyWasDown && (!g_window || GetForegroundWindow() == g_window)) {
-				if (g_view == View::kAll) {
+				const View view = g_view.load();
+				if (view == View::kAll) {
 					g_view = View::kWarnings;
-					g_offNote = false;
-				} else if (g_view == View::kWarnings) {
+				} else if (view == View::kWarnings) {
 					g_view = View::kOff;
-					g_offNote = true;
-					// The time of this frame. A later time would be after the
-					// time that the 10 second check uses in this frame.
-					g_offNoteStart = g_lastPresentStart;
+					abyssus::Notify(kSource, "Overlay has been turned off", 10.0f);
 				} else {
 					g_view = View::kAll;
-					g_offNote = false;
 				}
 			}
 			g_keyWasDown = down;
@@ -433,20 +409,7 @@ namespace skydiag::overlay
 					slot->used = true;
 				}
 			}
-			// A note from a different thread.
-			AcquireSRWLockExclusive(&g_noteLock);
-			if (g_pendingNote[0] != '\0') {
-				strncpy_s(g_note, g_pendingNote, _TRUNCATE);
-				g_noteSeconds = g_pendingNoteSeconds;
-				g_noteStart = a_now;
-				g_pendingNote[0] = '\0';
-			}
-			ReleaseSRWLockExclusive(&g_noteLock);
-			if (g_note[0] != '\0' && MicrosBetween(g_noteStart, a_now) >= static_cast<std::uint64_t>(g_noteSeconds * 1000000.0f)) {
-				g_note[0] = '\0';
-			}
-
-			g_warningCount = g_note[0] != '\0' ? 1 : 0;
+			g_warningCount = 0;
 			for (auto& shown : g_shown) {
 				if (shown.used && !shown.active &&
 					MicrosBetween(shown.lastActive, a_now) >= static_cast<std::uint64_t>(g_options.warningHoldSeconds * 1000000.0f)) {
@@ -458,52 +421,64 @@ namespace skydiag::overlay
 			}
 		}
 
-		// The warnings are shown also when the overlay is hidden.
-		void BuildWarnings(float a_top)
-		{
-			if (g_warningCount == 0) {
-				return;
-			}
-			ImGui::SetNextWindowPos(ImVec2(10.0f, a_top), ImGuiCond_Always);
-			ImGui::SetNextWindowBgAlpha(0.7f);
-			const ImGuiWindowFlags flags = ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoSavedSettings |
-			                               ImGuiWindowFlags_NoFocusOnAppearing | ImGuiWindowFlags_NoNav | ImGuiWindowFlags_NoInputs;
-			if (ImGui::Begin("SkyrimDiagnosticsWarnings", nullptr, flags)) {
-				LARGE_INTEGER now;
-				QueryPerformanceCounter(&now);
-				ImGui::PushTextWrapPos(560.0f);
-				if (g_note[0] != '\0') {
-					ImGui::TextColored(ImVec4(0.55f, 0.85f, 1.0f, 1.0f), "%s", g_note);
-				}
-				// Most severe first; a warning that ended is dim and shows
-				// how long ago it ended.
-				for (int level = 3; level >= 1; --level) {
-					for (const auto& shown : g_shown) {
-						if (!shown.used || static_cast<int>(shown.warning.severity) != level) {
-							continue;
-						}
-						ImVec4 color = level == 3 ? ImVec4(1.0f, 0.35f, 0.3f, 1.0f) : level == 2 ? ImVec4(1.0f, 0.8f, 0.25f, 1.0f) : ImVec4(0.8f, 0.85f, 0.9f, 1.0f);
-						if (shown.active) {
-							ImGui::TextColored(color, "%s", shown.warning.text);
-						} else {
-							color.w = 0.6f;
-							ImGui::TextColored(color, "%s (ended %llu s ago)", shown.warning.text,
-								static_cast<unsigned long long>(MicrosBetween(shown.lastActive, now) / 1000000));
-						}
-					}
-				}
-				ImGui::PopTextWrapPos();
-			}
-			ImGui::End();
-		}
+		// The two windows, and the builder that Part, Line and EndLine write to.
+		abyssus::WindowBuilder  g_dataWindow;
+		abyssus::WindowBuilder  g_warningsWindow;
+		abyssus::WindowBuilder* g_out = &g_dataWindow;
+		bool                    g_dataShown = false;      // the data window is sent to AbyssusLib
+		bool                    g_warningsShown = false;  // the warnings window is sent to AbyssusLib
 
-		float g_statsBottom = 10.0f;
+		constexpr AbyssusColor kRed{ 1.0f, 0.35f, 0.3f, 1.0f };
+		constexpr AbyssusColor kYellow{ 1.0f, 0.8f, 0.25f, 1.0f };
+		constexpr AbyssusColor kGrey{ 0.8f, 0.85f, 0.9f, 1.0f };
 
 		// Colors of the values: 0 = normal, 1 = yellow (near a limit),
 		// 2 = red (at or over a limit).
-		ImVec4 LevelColor(int a_level)
+		AbyssusColor LevelColor(int a_level)
 		{
-			return a_level >= 2 ? ImVec4(1.0f, 0.35f, 0.3f, 1.0f) : a_level == 1 ? ImVec4(1.0f, 0.8f, 0.25f, 1.0f) : ImGui::GetStyleColorVec4(ImGuiCol_Text);
+			return a_level >= 2 ? kRed : a_level == 1 ? kYellow : abyssus::WindowBuilder::kDefault;
+		}
+
+		void ClearWarningsWindow()
+		{
+			if (g_warningsShown) {
+				abyssus::ClearWindow(kSource, "warnings");
+				g_warningsShown = false;
+			}
+		}
+
+		// The warnings are shown also when the overlay is hidden.
+		// a_below: under the data window.
+		void BuildWarnings(bool a_below)
+		{
+			if (g_warningCount == 0) {
+				ClearWarningsWindow();
+				return;
+			}
+			LARGE_INTEGER now;
+			QueryPerformanceCounter(&now);
+			g_warningsWindow.Clear();
+			// Most severe first; a warning that ended is dim and shows
+			// how long ago it ended.
+			for (int level = 3; level >= 1; --level) {
+				for (const auto& shown : g_shown) {
+					if (!shown.used || static_cast<int>(shown.warning.severity) != level) {
+						continue;
+					}
+					AbyssusColor color = level == 3 ? kRed : level == 2 ? kYellow : kGrey;
+					if (shown.active) {
+						g_warningsWindow.Text(color, "%s", shown.warning.text);
+					} else {
+						color.a = 0.6f;
+						g_warningsWindow.Text(color, "%s (ended %llu s ago)", shown.warning.text,
+							static_cast<unsigned long long>(MicrosBetween(shown.lastActive, now) / 1000000));
+					}
+					g_warningsWindow.NewLine();
+				}
+			}
+			const AbyssusWindow window = g_warningsWindow.Make(10.0f, 10.0f, 0.7f, 560.0f, a_below ? "data" : nullptr);
+			abyssus::SetWindow(kSource, "warnings", &window);
+			g_warningsShown = true;
 		}
 
 		// Level for a value that is bad when it is high, and for one that
@@ -527,13 +502,24 @@ namespace skydiag::overlay
 			va_start(args, a_fmt);
 			std::vsnprintf(text, sizeof(text), a_fmt, args);
 			va_end(args);
-			ImGui::TextColored(LevelColor(a_level), "%s", text);
-			ImGui::SameLine(0.0f, 0.0f);
+			g_out->Text(LevelColor(a_level), "%s", text);
 		}
 
 		void EndLine()
 		{
-			ImGui::NewLine();
+			g_out->NewLine();
+		}
+
+		// A full line in the normal color.
+		void Line(const char* a_fmt, ...)
+		{
+			char    text[240];
+			va_list args;
+			va_start(args, a_fmt);
+			std::vsnprintf(text, sizeof(text), a_fmt, args);
+			va_end(args);
+			g_out->Text(abyssus::WindowBuilder::kDefault, "%s", text);
+			g_out->NewLine();
 		}
 
 		double Percent(double a_value, double a_maximum)
@@ -548,13 +534,11 @@ namespace skydiag::overlay
 		{
 			const frames::Summary s = frames::Latest();
 
-			ImGui::SetNextWindowPos(ImVec2(10.0f, 10.0f), ImGuiCond_Always);
-			ImGui::SetNextWindowBgAlpha(0.6f);
-			const ImGuiWindowFlags flags = ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoSavedSettings |
-			                               ImGuiWindowFlags_NoFocusOnAppearing | ImGuiWindowFlags_NoNav | ImGuiWindowFlags_NoInputs;
-			if (ImGui::Begin("SkyrimDiagnostics", nullptr, flags)) {
-				ImGui::Text("SkyrimDiagnostics %s (view key: all data / warnings only / off)", g_version);
-				ImGui::Separator();
+			g_dataWindow.Clear();
+			g_out = &g_dataWindow;
+			{
+				Line("SkyrimDiagnostics %s (view key: all data / warnings only / off)", g_version);
+				g_out->Separator();
 
 				// The colors of the frame values are for the settled game
 				// only: a loading screen has slow frames and that is normal.
@@ -613,7 +597,7 @@ namespace skydiag::overlay
 				for (const layout::Part part : g_layout) {
 					switch (part) {
 					case layout::Part::kSeparator:
-						ImGui::Separator();
+						g_out->Separator();
 						break;
 					case layout::Part::kFps:
 						Part(0, "FPS ");
@@ -630,7 +614,7 @@ namespace skydiag::overlay
 						{
 							static float history[300];
 							const int    count = frames::History(history, 300);
-							ImGui::PlotLines("##frames", history, count, 0, nullptr, 0.0f, 50.0f, ImVec2(380.0f, 50.0f));
+							g_out->Graph(history, count, 0.0f, 50.0f, 380.0f, 50.0f);
 						}
 						break;
 					case layout::Part::kPresent:
@@ -639,10 +623,10 @@ namespace skydiag::overlay
 						EndLine();
 						break;
 					case layout::Part::kLimit:
-						ImGui::Text("Limit: %s", frames::LimitText(g_effectiveLimit));
+						Line("Limit: %s", frames::LimitText(g_effectiveLimit));
 						break;
 					case layout::Part::kDrawCalls:
-						ImGui::Text("Draw calls %u each frame", g_drawCallsPerFrame.load());
+						Line("Draw calls %u each frame", g_drawCallsPerFrame.load());
 						break;
 					case layout::Part::kLatency:
 						Part(0, "Input latency ");
@@ -678,7 +662,7 @@ namespace skydiag::overlay
 							Part(High(percent, 80.0, 90.0), "%s / %s (%.0f%%)", MemText(used).text, MemText(maximum).text, percent);
 							EndLine();
 						} else {
-							ImGui::Text("Video memory: not available");
+							Line("Video memory: not available");
 						}
 						break;
 					case layout::Part::kReferences:
@@ -709,7 +693,7 @@ namespace skydiag::overlay
 						break;
 					case layout::Part::kAnimations:
 						if (g_animationsKnown.load()) {
-							ImGui::Text("Loaded animations %u", g_animations.load());
+							Line("Loaded animations %u", g_animations.load());
 						}
 						break;
 					case layout::Part::kModMemory:
@@ -729,17 +713,17 @@ namespace skydiag::overlay
 									continue;
 								}
 								if (!header) {
-									ImGui::Text("Heap memory in use by mod DLL (largest)");
+									Line("Heap memory in use by mod DLL (largest)");
 									header = true;
 								}
-								ImGui::Text("  %-20s  %s", MemText(static_cast<std::uint64_t>(megabytes)).text, memory[i].name);
+								Line("  %-20s  %s", MemText(static_cast<std::uint64_t>(megabytes)).text, memory[i].name);
 							}
 						}
 						break;
 					case layout::Part::kThreads:
 						readProfile();
 						if (shownThreadCount > 0) {
-							ImGui::Text("Busy threads, last 5 s: work %% of the thread time, and where");
+							Line("Busy threads, last 5 s: work %% of the thread time, and where");
 							int lines = 0;
 							for (int i = 0; i < shownThreadCount && lines < 6; ++i) {
 								const auto& thread = shownThreads[i];
@@ -766,7 +750,7 @@ namespace skydiag::overlay
 						} else {
 							char status[240];
 							profiler::Status(status, sizeof(status));
-							ImGui::Text("Profiler: %s", g_options.profiler ? status : "off in the settings file");
+							Line("Profiler: %s", g_options.profiler ? status : "off in the settings file");
 						}
 						break;
 					case layout::Part::kModDlls:
@@ -778,7 +762,7 @@ namespace skydiag::overlay
 									continue;
 								}
 								if (!header) {
-									ImGui::Text("Mod DLLs, %% of one core: own code / waiting / total");
+									Line("Mod DLLs, %% of one core: own code / waiting / total");
 									header = true;
 								}
 								Part(0, "  ");
@@ -795,13 +779,13 @@ namespace skydiag::overlay
 							Part(0, ")");
 							EndLine();
 						} else {
-							ImGui::Text("Papyrus sampler: %s", papyrus::Status());
+							Line("Papyrus sampler: %s", papyrus::Status());
 						}
 						break;
 					case layout::Part::kScripts:
 						if (readScripts()) {
 							for (int i = 0; i < scripts.count && i < 4; ++i) {
-								ImGui::Text("  %4.1f run  %5.1f wait  %s", scripts.entries[i].running, scripts.entries[i].waiting, scripts.entries[i].name);
+								Line("  %4.1f run  %5.1f wait  %s", scripts.entries[i].running, scripts.entries[i].waiting, scripts.entries[i].name);
 							}
 						}
 						break;
@@ -814,7 +798,7 @@ namespace skydiag::overlay
 										break;
 									}
 									if (i == 0) {
-										ImGui::Text("Papyrus functions: ms each second / calls each second");
+										Line("Papyrus functions: ms each second / calls each second");
 									}
 									Part(0, "  ");
 									Part(High(scripts.timed[i].msPerSecond, 20.0, 100.0), "%6.2f", scripts.timed[i].msPerSecond);
@@ -827,125 +811,27 @@ namespace skydiag::overlay
 										break;
 									}
 									if (i == 0) {
-										ImGui::Text("Papyrus functions that run most (from samples)");
+										Line("Papyrus functions that run most (from samples)");
 									}
-									ImGui::Text("  %4.2f  %s", scripts.functions[i].running, scripts.functions[i].name);
+									Line("  %4.2f  %s", scripts.functions[i].running, scripts.functions[i].name);
 								}
 							}
 						}
 						break;
 					}
 				}
-				g_statsBottom = ImGui::GetWindowPos().y + ImGui::GetWindowSize().y + 6.0f;
 			}
-			ImGui::End();
+			const AbyssusWindow window = g_dataWindow.Make(10.0f, 10.0f, 0.6f);
+			abyssus::SetWindow(kSource, "data", &window);
+			g_dataShown = true;
 		}
 
-		void BuildOffNote()
+		void ClearDataWindow()
 		{
-			ImGui::SetNextWindowPos(ImVec2(10.0f, 10.0f), ImGuiCond_Always);
-			ImGui::SetNextWindowBgAlpha(0.7f);
-			const ImGuiWindowFlags flags = ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoSavedSettings |
-			                               ImGuiWindowFlags_NoFocusOnAppearing | ImGuiWindowFlags_NoNav | ImGuiWindowFlags_NoInputs;
-			if (ImGui::Begin("SkyrimDiagnosticsOff", nullptr, flags)) {
-				ImGui::TextColored(ImVec4(0.55f, 0.85f, 1.0f, 1.0f), "Skyrim Diagnostics Overlay has been turned off");
+			if (g_dataShown) {
+				abyssus::ClearWindow(kSource, "data");
+				g_dataShown = false;
 			}
-			ImGui::End();
-		}
-
-		// Gets the render target of the game UI and its size. If the
-		// pointer from the game is not a usable view, the overlay goes back
-		// to the swap chain image for the rest of the session.
-		bool GameTarget(ID3D11RenderTargetView*& a_target, D3D11_TEXTURE2D_DESC& a_desc)
-		{
-			bool ok = false;
-			__try {
-				if (auto view = static_cast<ID3D11RenderTargetView*>(g_options.gameTarget())) {
-					ID3D11Resource* resource = nullptr;
-					view->GetResource(&resource);
-					ID3D11Texture2D* texture = nullptr;
-					if (resource && SUCCEEDED(resource->QueryInterface(__uuidof(ID3D11Texture2D), reinterpret_cast<void**>(&texture))) && texture) {
-						texture->GetDesc(&a_desc);
-						texture->Release();
-						if (a_desc.Width >= 64 && a_desc.Width <= 16384 && a_desc.Height >= 64 && a_desc.Height <= 16384) {
-							view->AddRef();
-							a_target = view;
-							ok = true;
-						}
-					}
-					if (resource) {
-						resource->Release();
-					}
-				}
-			} __except (EXCEPTION_EXECUTE_HANDLER) {
-				g_options.gameTarget = nullptr;
-				session::Event("Overlay: the game UI target is not usable, the swap chain image is used");
-				ok = false;
-			}
-			return ok;
-		}
-
-		void Draw(IDXGISwapChain* a_swapChain, float a_deltaSeconds)
-		{
-			D3D11_TEXTURE2D_DESC    desc{};
-			ID3D11RenderTargetView* target = nullptr;
-
-			// First choice: the render target that the game uses for its
-			// menus and HUD. Tools that change the image after the 3D
-			// scene (upscaling, frame generation, HDR of Community
-			// Shaders) keep the game UI apart from the scene. With this
-			// target, they handle the overlay as they handle the game UI.
-			if (g_options.gameTarget && !GameTarget(target, desc)) {
-				target = nullptr;
-			}
-			if (!target) {
-				ID3D11Texture2D* backBuffer = nullptr;
-				if (FAILED(a_swapChain->GetBuffer(0, __uuidof(ID3D11Texture2D), reinterpret_cast<void**>(&backBuffer))) || !backBuffer) {
-					return;
-				}
-				backBuffer->GetDesc(&desc);
-				// The view is made and released in each frame. A view that is
-				// kept would stop the game from changing the resolution.
-				const HRESULT hr = g_device->CreateRenderTargetView(backBuffer, nullptr, &target);
-				backBuffer->Release();
-				if (FAILED(hr) || !target) {
-					return;
-				}
-			}
-
-			ImGuiIO& io = ImGui::GetIO();
-			io.DisplaySize = ImVec2(static_cast<float>(desc.Width), static_cast<float>(desc.Height));
-			io.DeltaTime = a_deltaSeconds > 0.0f ? a_deltaSeconds : 1.0f / 60.0f;
-
-			ImGui_ImplDX11_NewFrame();
-			ImGui::NewFrame();
-			if (g_view == View::kAll) {
-				BuildWindow();
-				BuildWarnings(g_statsBottom);
-			} else if (g_view == View::kWarnings) {
-				BuildWarnings(10.0f);
-			} else {
-				BuildOffNote();
-			}
-			ImGui::Render();
-
-			ID3D11RenderTargetView* oldTargets[D3D11_SIMULTANEOUS_RENDER_TARGET_COUNT] = {};
-			ID3D11DepthStencilView* oldDepth = nullptr;
-			g_context->OMGetRenderTargets(D3D11_SIMULTANEOUS_RENDER_TARGET_COUNT, oldTargets, &oldDepth);
-
-			g_context->OMSetRenderTargets(1, &target, nullptr);
-			ImGui_ImplDX11_RenderDrawData(ImGui::GetDrawData());
-
-			g_context->OMSetRenderTargets(D3D11_SIMULTANEOUS_RENDER_TARGET_COUNT, oldTargets, oldDepth);
-			for (auto old : oldTargets) {
-				if (old) {
-					old->Release();
-				}
-			}
-			if (oldDepth) {
-				oldDepth->Release();
-			}
-			target->Release();
 		}
 
 		HRESULT STDMETHODCALLTYPE HookedPresent(IDXGISwapChain* a_swapChain, UINT a_syncInterval, UINT a_flags)
@@ -999,11 +885,20 @@ namespace skydiag::overlay
 			UpdateToggle();
 			UpdateVideoMemory(start);
 			UpdateWarnings(start);
-			if (g_offNote && MicrosBetween(g_offNoteStart, start) >= 10000000) {
-				g_offNote = false;
-			}
-			if (g_view == View::kAll || (g_view == View::kWarnings && g_warningCount > 0) || (g_view == View::kOff && g_offNote)) {
-				Draw(a_swapChain, static_cast<float>(frameUs) / 1000000.0f);
+			// The windows: AbyssusLib draws them. Without AbyssusLib, no windows.
+			switch (abyssus::HasWindows() ? g_view.load() : View::kOff) {
+			case View::kAll:
+				BuildWindow();
+				BuildWarnings(true);
+				break;
+			case View::kWarnings:
+				ClearDataWindow();
+				BuildWarnings(false);
+				break;
+			default:
+				ClearDataWindow();
+				ClearWarningsWindow();
+				break;
 			}
 			const std::uint32_t gpuQueue = UpdateGpuQueue();
 
@@ -1056,10 +951,10 @@ namespace skydiag::overlay
 
 	void PostNote(const char* a_text, float a_seconds)
 	{
-		AcquireSRWLockExclusive(&g_noteLock);
-		strncpy_s(g_pendingNote, a_text ? a_text : "", _TRUNCATE);
-		g_pendingNoteSeconds = a_seconds;
-		ReleaseSRWLockExclusive(&g_noteLock);
+		// The shared note box of AbyssusLib. Not in the "off" view.
+		if (g_view.load() != View::kOff) {
+			abyssus::Notify(kSource, a_text, a_seconds);
+		}
 	}
 
 	void SetEngineState(const EngineState& a_state)

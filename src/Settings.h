@@ -19,7 +19,6 @@ namespace skydiag
 		bool  animations{ true };         // count the loaded animation files
 		bool  memoryByDll{ true };        // count the heap memory of each mod DLL
 		bool  papyrusTime{ true };        // measure the time in each script function
-		bool  overlayOnGameTarget{ true };  // draw on the render target of the game UI (false: on the swap chain image)
 		int   stallSeconds{ 30 };
 		bool  fileFound{ false };
 	};

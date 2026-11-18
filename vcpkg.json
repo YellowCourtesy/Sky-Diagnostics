@@ -20,12 +20,6 @@
 			"version>=": "12.1.0"
 		},
 		{
-			"name": "imgui",
-			"features": [
-				"dx11-binding"
-			]
-		},
-		{
 			"name": "rapidcsv",
 			"version>=": "8.90"
 		},

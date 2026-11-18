@@ -1,4 +1,5 @@
 #include "Config.h"
+#include "Abyssus/API.h"
 #include "ModMap.h"
 #include "OverlayLayout.h"
 #include "crash/MemTrack.h"
@@ -175,13 +176,6 @@ namespace
 			const int count = skydiag::memtrack::HookModules();
 			SKSE::log::info("Memory count by mod DLL: {} DLLs.", count);
 		}
-	}
-
-	// The render target that the game uses for its menus and HUD now.
-	void* GameUiTarget()
-	{
-		const auto renderer = RE::BSGraphics::Renderer::GetSingleton();
-		return renderer ? static_cast<void*>(renderer->GetRuntimeData().renderTargets[RE::RENDER_TARGETS::kFRAMEBUFFER].RTV) : nullptr;
 	}
 
 	// The game sends its input events to this object one time in each
@@ -534,7 +528,12 @@ namespace
 					SKSE::log::info("{}", comparison);
 					skydiag::session::Event("Comparison: %+.0f%% against the sessions before", change * 100.0f);
 					if (change >= skydiag::report::kNotifyChange || change <= -skydiag::report::kNotifyChange) {
-						skydiag::overlay::PostNote(comparison.c_str(), 45.0f);
+						if (abyssus::IsAvailable()) {
+							skydiag::overlay::PostNote(comparison.c_str(), 45.0f);
+						} else if (const auto tasks = SKSE::GetTaskInterface()) {
+							// Without AbyssusLib: the game's notification, on the main thread.
+							tasks->AddTask([text = comparison]() { RE::DebugNotification(text.c_str()); });
+						}
 					}
 				}
 			}
@@ -695,6 +694,13 @@ namespace
 			break;
 		case SKSE::MessagingInterface::kDataLoaded:
 			SKSE::log::info("Game data is loaded.");
+			// All plugins are loaded now: AbyssusLib can be found.
+			SKSE::log::info("AbyssusLib: {}", abyssus::HasWindows() ? "found" : (abyssus::IsAvailable() ? "found, but too old for windows" : "not found"));
+			if (!abyssus::HasWindows()) {
+				RE::DebugMessageBox(abyssus::IsAvailable() ?
+				                        "SkyrimDiagnostics\n\nThe installed AbyssusLib is too old. Install AbyssusLib 2 or later. The overlay does not show. The reports work." :
+				                        "SkyrimDiagnostics\n\nAbyssusLib was not found. The overlay does not show. The reports work.");
+			}
 			skydiag::session::Event("Game data loaded");
 			g_dataLoaded = true;
 			LoadModMap();
@@ -713,10 +719,12 @@ namespace
 				options.fpsBelow = g_settings.fpsBelow;
 				options.profiler = g_settings.profiler;
 				options.memoryByDll = g_settings.memoryByDll;
-				options.gameTarget = g_settings.overlayOnGameTarget ? &GameUiTarget : nullptr;
 				options.layoutText = g_layoutText.c_str();
 				if (skydiag::overlay::Install(window->swapChain, SKYDIAG_VERSION, options)) {
-					SKSE::log::info("Frame measurement and overlay are on (key 0x{:X} changes the view: all data, warnings only, off).", g_settings.toggleKey);
+					SKSE::log::info("Frame measurement is on.");
+					if (abyssus::HasWindows()) {
+						SKSE::log::info("Overlay is on through AbyssusLib (key 0x{:X} changes the view: all data, warnings only, off).", g_settings.toggleKey);
+					}
 				} else {
 					SKSE::log::error("Frame measurement is off: the Present hook failed.");
 				}
@@ -790,8 +798,8 @@ namespace
 				g_settings.fpsBelow, g_settings.profiler ? "on" : "off", g_settings.papyrus ? "on" : "off", g_settings.engineLimits ? "on" : "off",
 				g_settings.animations ? "on" : "off", g_settings.stallSeconds);
 
-			SKSE::log::info("Memory count by mod DLL {}, Papyrus function time {}, overlay target: {}.", g_settings.memoryByDll ? "on" : "off",
-				g_settings.papyrusTime ? "on" : "off", g_settings.overlayOnGameTarget ? "game UI target" : "swap chain");
+			SKSE::log::info("Memory count by mod DLL {}, Papyrus function time {}.", g_settings.memoryByDll ? "on" : "off",
+				g_settings.papyrusTime ? "on" : "off");
 
 			// Older versions of the tool made the log file in the SKSE
 			// log folder itself. The file is now in the SkyrimDiagnostics
