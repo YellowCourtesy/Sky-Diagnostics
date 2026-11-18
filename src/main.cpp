@@ -928,6 +928,12 @@ namespace
 				problems.size() == 1 ? "" : "s");
 			skydiag::overlay::PostNote(note.c_str(), 30.0f);
 		}
+		if (skydiag::sysinfo::IsLoaded(L"CrashLogger.dll")) {
+			text += "Crash Logger is loaded: it can take a crash before this tool. Then the crash report of this tool is missing, and the unclean "
+			        "exit report has the Crash Logger log.\n";
+			SKSE::log::warn("Crash Logger (CrashLogger.dll) is loaded. It can take a crash before this tool; disable it for the crash reports of this tool.");
+			skydiag::overlay::PostNote("Crash Logger is loaded: it can take crashes before SkyrimDiagnostics. Disable it for the crash reports of SkyrimDiagnostics.", 20.0f);
+		}
 		strncpy_s(g_systemSection, text.c_str(), _TRUNCATE);
 		skydiag::crash::RegisterSection("SYSTEM", &SystemSection);
 

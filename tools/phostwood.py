@@ -165,6 +165,20 @@ def plain(text):
 # ---------------------------------------------------------------------------
 
 
+# Conditions that the analyzer has in its code, not in its data tables, so the
+# import cannot read them. Each one has the date it was written here: check it
+# against the analyzer when the data changes.
+#   requires_module  the group counts only if this DLL is loaded
+#   requires_text    the group counts only if this text is in the crash place
+#                    (call stack, registers, stack)
+#   possible_only    the analyzer shows the group as "possible" only
+GROUP_CONDITIONS = {
+    'dragonsEyeMinimapIssues': {'requires_module': 'DragonsEyeMinimap.dll', 'added': '2026-11-18'},
+    'lotdKaragasTowerDoorCrashIssues': {'requires_text': 'LegacyoftheDragonborn', 'added': '2026-11-18'},
+    'enbShaderLightingIssues': {'possible_only': True, 'added': '2026-11-18'},
+}
+
+
 def do_import(folder, out_path):
     js = os.path.join(folder, 'js')
 
@@ -199,7 +213,9 @@ def do_import(folder, out_path):
                 if text:
                     items.append({'text': text, 'what': plain(e.get('description', ''))})
         if items or hex_codes:
-            groups.append({'key': key, 'items': items, 'hex': hex_codes})
+            group = {'key': key, 'items': items, 'hex': hex_codes}
+            group.update({k: v for k, v in GROUP_CONDITIONS.get(key, {}).items()})
+            groups.append(group)
 
     # DLL versions that do not work with newer game versions.
     compat_src = literal_after(read('dllCompatibleSkyrimVersionsMap.js'), r'const\s+dllCompatibleSkyrimVersionsMap\s*=\s*')
@@ -303,9 +319,10 @@ def do_inc(json_path, out_path):
         count = len(items) - first
         for h in g['hex']:
             items.append(f'\t{{ {c_str(h["hex"])}, {c_str(h["what"])} }},')
-        groups.append(f'\t{{ {c_str(g["key"])}, {first}, {count}, {len(g["hex"])} }},')
+        groups.append(f'\t{{ {c_str(g["key"])}, {first}, {count}, {len(g["hex"])}, {c_str(g.get("requires_module", ""))}, '
+                      f'{c_str(g.get("requires_text", ""))}, {"true" if g.get("possible_only") else "false"}, {c_str(g.get("added", ""))} }},')
     lines += ['static constexpr PhostwoodItem kPhostwoodItems[] = {'] + (items or ['\t{ "", "" },']) + ['};']
-    lines += ['static constexpr PhostwoodGroup kPhostwoodGroups[] = {'] + (groups or ['\t{ "", 0, 0, 0 },']) + ['};', '']
+    lines += ['static constexpr PhostwoodGroup kPhostwoodGroups[] = {'] + (groups or ['\t{ "", 0, 0, 0, "", "", false, "" },']) + ['};', '']
 
     rows = [f'\t{{ {c_str(c["dll"])}, {c_version(c["version"])}, {c_version(c["maxGame"])}, {c_version(c["ignoreBelow"])}, '
             f'{c_str(c["recommended"])}, {c_str(c["mod"])}, {c_str(c["url"])}, {c_str(c["note"])} }},' for c in d['dllVersions']]

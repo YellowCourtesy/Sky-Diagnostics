@@ -364,8 +364,19 @@ namespace skydiag::session
 			if (file == INVALID_HANDLE_VALUE) {
 				return false;
 			}
-			DWORD      written = 0;
-			const bool ok = WriteFile(file, out.buf, static_cast<DWORD>(out.len), &written, nullptr) != FALSE;
+			// Head lines, then PROBABLE CAUSE (the end of the text), then the other sections.
+			const char*       firstSection = strstr(out.buf, "\n== ");
+			const std::size_t headLen = firstSection ? static_cast<std::size_t>(firstSection - out.buf) : out.len;
+			const char*       cause = strstr(out.buf, "\n== PROBABLE CAUSE ==");
+			const std::size_t causeAt = cause ? static_cast<std::size_t>(cause - out.buf) : out.len;
+			DWORD             written = 0;
+			bool              ok = WriteFile(file, out.buf, static_cast<DWORD>(headLen), &written, nullptr) != FALSE;
+			if (causeAt < out.len) {
+				ok = WriteFile(file, out.buf + causeAt, static_cast<DWORD>(out.len - causeAt), &written, nullptr) != FALSE && ok;
+			}
+			if (causeAt > headLen) {
+				ok = WriteFile(file, out.buf + headLen, static_cast<DWORD>(causeAt - headLen), &written, nullptr) != FALSE && ok;
+			}
 			CloseHandle(file);
 			return ok;
 		}

@@ -208,6 +208,11 @@ namespace skydiag::sysinfo
 		return g_collected ? g_text.c_str() : "";
 	}
 
+	bool IsLoaded(const wchar_t* a_name)
+	{
+		return GetModuleHandleW(a_name) != nullptr;
+	}
+
 	bool IsDxvk()
 	{
 		return g_dxvk;

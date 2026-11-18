@@ -28,6 +28,10 @@ namespace skydiag::crash::phostwood
 			int         first;  // in kPhostwoodItems
 			int         count;  // names to find in the report
 			int         hex;    // then this many exception address offsets
+			const char* requiresModule;  // the group counts only if this DLL is loaded ("" = none)
+			const char* requiresText;    // the group counts only if this text is at the crash place ("" = none)
+			bool        possibleOnly;    // never "probable"
+			const char* conditionAdded;  // the date the condition was written into tools/phostwood.py
 		};
 		struct PhostwoodDllVersion
 		{
@@ -239,6 +243,18 @@ namespace skydiag::crash::phostwood
 			if (g.key[0] == '\0') {
 				continue;
 			}
+			if (g.requiresModule[0] != '\0') {
+				bool loaded = false;
+				for (int i = 0; i < a_in.loadedCount && !loaded; ++i) {
+					loaded = _stricmp(a_in.loaded[i], g.requiresModule) == 0;
+				}
+				if (!loaded) {
+					continue;
+				}
+			}
+			if (g.requiresText[0] != '\0' && !HasText(a_in.top, g.requiresText) && !HasText(a_in.exception, g.requiresText)) {
+				continue;
+			}
 			char title[96];
 			GroupTitle(g.key, title, sizeof(title));
 
@@ -267,7 +283,7 @@ namespace skydiag::crash::phostwood
 				continue;
 			}
 			++signs;
-			Put(a_out, "  %s: %s. Found: ", high > 0 ? "Probable" : "Possible", title);
+			Put(a_out, "  %s: %s. Found: ", high > 0 && !g.possibleOnly ? "Probable" : "Possible", title);
 			bool first = true;
 			for (int i = 0; i < g.count; ++i) {
 				const auto& it = kPhostwoodItems[g.first + i];

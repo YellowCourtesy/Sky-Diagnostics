@@ -173,6 +173,18 @@ namespace skydiag::crash::hooks
 		}
 
 		bool InGame(std::uintptr_t a_address) { return a_address >= g_base && a_address < g_end; }
+
+		// A real hook goes to code: memory that is in use and can run. A
+		// different change of the game code (for example a changed address)
+		// can look like a jump to a place with no code: not a hook.
+		bool IsCode(std::uintptr_t a_address)
+		{
+			MEMORY_BASIC_INFORMATION info{};
+			if (VirtualQuery(reinterpret_cast<LPCVOID>(a_address), &info, sizeof(info)) != sizeof(info) || info.State != MEM_COMMIT) {
+				return false;
+			}
+			return (info.Protect & (PAGE_EXECUTE | PAGE_EXECUTE_READ | PAGE_EXECUTE_READWRITE | PAGE_EXECUTE_WRITECOPY)) != 0;
+		}
 	}
 
 	int Scan()
@@ -212,7 +224,7 @@ namespace skydiag::crash::hooks
 				for (DWORD back = 0; back <= 4 && back <= i; ++back) {
 					const std::uintptr_t at = reinterpret_cast<std::uintptr_t>(memory + i - back);
 					const std::uintptr_t target = JumpTarget(at);
-					if (target != 0 && !InGame(target)) {
+					if (target != 0 && !InGame(target) && IsCode(target)) {
 						Add(at, FinalTarget(target));
 						i += 4;  // past the jump
 						break;

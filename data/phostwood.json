@@ -51,7 +51,9 @@
      "what": "Indicates heads-up display issue"
     }
    ],
-   "hex": []
+   "hex": [],
+   "requires_module": "DragonsEyeMinimap.dll",
+   "added": "2026-11-18"
   },
   {
    "key": "nvidiaDriverIssues",
@@ -661,7 +663,9 @@
      "hex": "04D26E7",
      "what": "First-line error code for Legend of the Dragonborn's Karagas' Tower Door Crash"
     }
-   ]
+   ],
+   "requires_text": "LegacyoftheDragonborn",
+   "added": "2026-11-18"
   },
   {
    "key": "pathingAndNavMeshIssues",
@@ -1065,7 +1069,9 @@
      "what": "Complex fire effects - particle lighting/shader overload"
     }
    ],
-   "hex": []
+   "hex": [],
+   "possible_only": true,
+   "added": "2026-11-18"
   }
  ],
  "dllVersions": [

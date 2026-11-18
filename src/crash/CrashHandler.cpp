@@ -1001,7 +1001,8 @@ namespace skydiag::crash
 			AppendSections(a_out);
 			session::AppendRecent(a_out);
 
-			// Probable cause. This is the last section on purpose.
+			// Probable cause. It is the last section of the text; WriteReportFile
+			// puts it right after the quick answer in the file.
 			Put(a_out, "\n== PROBABLE CAUSE ==\n");
 			const bool memoryFull = session::AppendMemoryWarning(a_out);
 			if (g_quick.closing) {
@@ -1189,8 +1190,41 @@ namespace skydiag::crash
 														 "texture sizes. Then test again.");
 			}
 			if (g_quick.tryText[0] == '\0') {
-				_snprintf_s(g_quick.tryText, _TRUNCATE, "No mod can be named. Read PROBABLE CAUSE at the end of this file, and note what you did when the game crashed.");
+				_snprintf_s(g_quick.tryText, _TRUNCATE, "No mod can be named. Read PROBABLE CAUSE below, and note what you did when the game crashed.");
 			}
+		}
+
+		// Writes a report: its head lines (up to the first section), then a_quick
+		// (or nothing), then the PROBABLE CAUSE section (to the end of the text),
+		// then the other sections. The text is made with PROBABLE CAUSE last.
+		// No heap memory.
+		bool WriteReportFile(const wchar_t* a_path, const Out& a_out, const Out* a_quick)
+		{
+			const char*       body = a_out.buf;
+			const std::size_t length = a_out.len;
+			const char*       firstSection = strstr(body, "\n== ");
+			const std::size_t headLen = firstSection ? static_cast<std::size_t>(firstSection - body) : length;
+			const char*       cause = strstr(body, "\n== PROBABLE CAUSE ==");
+			const std::size_t causeAt = cause ? static_cast<std::size_t>(cause - body) : length;
+
+			const HANDLE file = CreateFileW(a_path, GENERIC_WRITE, FILE_SHARE_READ, nullptr, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
+			if (file == INVALID_HANDLE_VALUE) {
+				return false;
+			}
+			DWORD written = 0;
+			bool  ok = WriteFile(file, body, static_cast<DWORD>(headLen), &written, nullptr) != FALSE;
+			if (a_quick) {
+				ok = WriteFile(file, a_quick->buf, static_cast<DWORD>(a_quick->len), &written, nullptr) != FALSE && ok;
+			}
+			if (causeAt < length) {
+				ok = WriteFile(file, body + causeAt, static_cast<DWORD>(length - causeAt), &written, nullptr) != FALSE && ok;
+			}
+			if (causeAt > headLen) {
+				ok = WriteFile(file, body + headLen, static_cast<DWORD>(causeAt - headLen), &written, nullptr) != FALSE && ok;
+			}
+			FlushFileBuffers(file);
+			CloseHandle(file);
+			return ok;
 		}
 
 		// The crash history: one line for each crash, in crash-history.txt in
@@ -1260,7 +1294,7 @@ namespace skydiag::crash
 				Put(a_out, "Repeat: a crash at the same place (%s) happened %d time%s before, the last on %s.\n", g_quick.group, a_repeats,
 					a_repeats == 1 ? "" : "s", a_last);
 			}
-			Put(a_out, "The details are below; PROBABLE CAUSE is at the end of this file.\n");
+			Put(a_out, "PROBABLE CAUSE follows; the details are below it.\n");
 		}
 
 		void WriteFiles(Out& a_out, EXCEPTION_POINTERS* a_pointers, DWORD a_threadId)
@@ -1308,24 +1342,12 @@ namespace skydiag::crash
 			char      last[64];
 			const int repeats = CrashHistory(g_quick.group, now, !g_quick.closing, last, sizeof(last));
 
-			// The file: the first line of the report, the short answer, then the rest.
+			// The file: the head lines, the short answer, PROBABLE CAUSE, then the details.
 			static char quick[4096];
 			Out         q{ quick, sizeof(quick), 0 };
 			quick[0] = '\0';
 			PutQuick(q, repeats, last);
-			const char*       body = a_out.buf;
-			const char*       firstEnd = static_cast<const char*>(memchr(body, '\n', a_out.len));
-			const std::size_t headLen = firstEnd ? static_cast<std::size_t>(firstEnd - body) + 1 : 0;
-
-			const HANDLE file = CreateFileW(path, GENERIC_WRITE, FILE_SHARE_READ, nullptr, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
-			if (file != INVALID_HANDLE_VALUE) {
-				DWORD written = 0;
-				WriteFile(file, body, static_cast<DWORD>(headLen), &written, nullptr);
-				WriteFile(file, q.buf, static_cast<DWORD>(q.len), &written, nullptr);
-				WriteFile(file, body + headLen, static_cast<DWORD>(a_out.len - headLen), &written, nullptr);
-				FlushFileBuffers(file);
-				CloseHandle(file);
-			}
+			WriteReportFile(path, a_out, &q);
 			FILETIME crashTime{};
 			GetSystemTimeAsFileTime(&crashTime);
 			monitor::NoteReport(path, g_openReport && !g_quick.closing, (static_cast<std::uint64_t>(crashTime.dwHighDateTime) << 32) | crashTime.dwLowDateTime);
@@ -1397,7 +1419,8 @@ namespace skydiag::crash
 			}
 			const auto previous = reinterpret_cast<std::uintptr_t>(g_previousFilter.load());
 			if (previous) {
-				if (const Module* m = FindModule(previous); m && !m->isSystem) {
+				// The game's own filter is not a crash handler of a mod.
+				if (const Module* m = FindModule(previous); m && !m->isSystem && !m->isGame) {
 					Put(a_out, "\nA different crash handler is installed: %s. It runs after this tool.\n", m->name);
 				}
 			}
@@ -1805,14 +1828,7 @@ namespace skydiag::crash
 			Put(out, "\nMinidump: %s\n", dump ? "written by the monitor process (same file name, .dmp)" : "not written (the monitor process is not running)");
 		}
 
-		bool         ok = false;
-		const HANDLE file = CreateFileW(path, GENERIC_WRITE, FILE_SHARE_READ, nullptr, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
-		if (file != INVALID_HANDLE_VALUE) {
-			DWORD written = 0;
-			ok = WriteFile(file, out.buf, static_cast<DWORD>(out.len), &written, nullptr) != FALSE;
-			FlushFileBuffers(file);
-			CloseHandle(file);
-		}
+		const bool ok = WriteReportFile(path, out, nullptr);
 		InterlockedExchange(&g_inStall, 0);
 		return ok;
 	}

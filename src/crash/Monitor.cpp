@@ -550,6 +550,11 @@ namespace skydiag::monitor
 				char p8[800];
 				Utf8(path, p8, sizeof(p8));
 				Log("Unclean exit report written: %s", p8);
+				// Crash Logger can take a crash before this tool: then its log is the
+				// only crash data. Add it to the report.
+				FILETIME nowTime{};
+				GetSystemTimeAsFileTime(&nowTime);
+				AddCrashLoggerLog(path, FileTime(nowTime) - 2ull * 60 * 10000000);
 				if (g_shared->optOpenReport && !closing) {
 					ShellExecuteW(nullptr, L"open", path, nullptr, nullptr, SW_SHOWNORMAL);
 				}

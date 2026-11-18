@@ -37,7 +37,13 @@ fix problems.
 | SE 1.5.97, VR, other AE versions | Built, not tested |
 
 All crash, stall and unclean exit reports go to `SkyrimDiagnostics/Reports`
-in the SKSE log folder. Each one ends with a PROBABLE CAUSE section.
+in the SKSE log folder. Each one has a PROBABLE CAUSE section right after
+its head lines (and after the QUICK ANSWER of a crash report).
+
+Crash Logger SSE: if it is loaded, it can take a crash before this tool, and
+then there is no crash report of this tool. The monitor then writes an
+unclean exit report and adds the Crash Logger log of the crash to it. For the
+reports of this tool, disable Crash Logger.
 
 Each game session also makes a report in
 `SkyrimDiagnostics/Sessions/<character name>` (`No character` until a save

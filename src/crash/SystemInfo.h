@@ -20,6 +20,9 @@ namespace skydiag::sysinfo
 	// does not change after Collect).
 	const char* Text();
 
+	// True if a DLL with this file name is loaded in this process.
+	bool IsLoaded(const wchar_t* a_name);
+
 	// True if d3d11.dll of this process is DXVK (Direct3D 11 on Vulkan).
 	bool IsDxvk();
 
