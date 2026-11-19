@@ -110,11 +110,67 @@ jobs:
           arch: x64
           toolset: ${{ steps.toolset.outputs.toolset }}
 
+      # CommonLibSSE built from source on an earlier run with the same compiler: use it as
+      # a prebuilt (cache key: the CommonLibSSE commit and the exact cl.exe version). GitHub's
+      # build image of 2026-11-16 has no toolset 14.51, which all CommonLibSSE prebuilts need,
+      # so without this cache each build compiles CommonLibSSE from source (about 15 min).
+      - name: Find the CommonLibSSE cache key
+        id: clib
+        shell: pwsh
+        run: |
+          $cl = (Get-Item (Get-Command cl.exe -ErrorAction Stop).Source).VersionInfo.FileVersion
+          $commit = git -C lib/commonlibsse-ng rev-parse HEAD
+          "key=commonlib-bundle-$commit-$cl" >> $env:GITHUB_OUTPUT
+          Write-Host "CommonLibSSE cache key: commonlib-bundle-$commit-$cl"
+
+      - name: Restore CommonLibSSE built from source
+        id: clibcache
+        uses: actions/cache/restore@v6
+        with:
+          path: commonlib-bundle
+          key: ${{ steps.clib.outputs.key }}
+
       - name: Configure
-        run: cmake --preset release
+        shell: pwsh
+        run: |
+          if (Test-Path commonlib-bundle/lib/CommonLibSSE.lib) {
+            Write-Host "CommonLibSSE: the cached build of an earlier run is used."
+            cmake --preset release "-DCOMMONLIB_PREBUILT_DIR=$((Resolve-Path commonlib-bundle).Path -replace '\\','/')"
+          } else {
+            cmake --preset release
+          }
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
       - name: Build
         run: cmake --build --preset release
+
+      # CommonLibSSE was built from source in this run: keep it for the next runs (the
+      # same layout as a CommonLibSSE prebuilt, with this compiler's version).
+      - name: Keep CommonLibSSE built from source
+        id: clibbundle
+        if: steps.clibcache.outputs.cache-hit != 'true'
+        shell: pwsh
+        run: |
+          $lib = Get-ChildItem build -Recurse -Filter CommonLibSSE.lib -ErrorAction SilentlyContinue | Where-Object { $_.FullName -notmatch "\.prebuilt" } | Select-Object -First 1
+          if (-not $lib) { Write-Host "CommonLibSSE was not built from source (a prebuilt was used): nothing to keep."; exit 0 }
+          $stage = "commonlib-bundle"
+          New-Item -ItemType Directory -Force -Path "$stage/lib","$stage/extern/openvr" | Out-Null
+          Copy-Item $lib.FullName "$stage/lib/"
+          Copy-Item lib/commonlibsse-ng/extern/openvr/lib/win64/openvr_api.lib "$stage/lib/"
+          Copy-Item -Recurse lib/commonlibsse-ng/include "$stage/include"
+          Copy-Item -Recurse lib/commonlibsse-ng/extern/openvr/headers "$stage/extern/openvr/headers"
+          $cl = (Get-Item (Get-Command cl.exe -ErrorAction Stop).Source).VersionInfo.FileVersion
+          $cl | Out-File "$stage/TOOLSET_VERSION.txt" -Encoding ascii -NoNewline
+          "msvc" | Out-File "$stage/TOOLCHAIN_ID.txt" -Encoding ascii -NoNewline
+          "ready=true" >> $env:GITHUB_OUTPUT
+          Write-Host "CommonLibSSE built from source is kept for the next runs ($cl)."
+
+      - name: Save CommonLibSSE built from source
+        if: steps.clibbundle.outputs.ready == 'true'
+        uses: actions/cache/save@v6
+        with:
+          path: commonlib-bundle
+          key: ${{ steps.clib.outputs.key }}
 
       - name: Crash tests
         shell: pwsh
