@@ -338,7 +338,8 @@ State: not tested in MO2.
 
 - `SkyrimDiagnosticsFaultTest.dll` (second build artifact) is a separate
   SKSE plugin that makes faults on purpose. It makes an empty `inject.txt`
-  in the `SkyrimDiagnostics` folder (SKSE log folder) and reads it every
+  in `Data/SKSE/Plugins/AbyssusLib/SkyrimDiagnostics` (with its log
+  `SkyrimDiagnosticsFaultTest.log`) and reads it every
   2 seconds, also while the game runs:
   - `cpu 15`: uses the processor for 15 ms in each frame
   - `sleep 15`: waits for 15 ms in each frame

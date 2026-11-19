@@ -2,8 +2,8 @@
 // purpose, so that the detection of SkyrimDiagnostics can be tested with a
 // real mod DLL. Do not install it for normal play.
 //
-// It reads the file SkyrimDiagnostics/inject.txt in the SKSE log folder
-// every 2 seconds. Each line is a word and a number:
+// It reads the file inject.txt in Data/SKSE/Plugins/AbyssusLib/SkyrimDiagnostics
+// (the folder of all SkyrimDiagnostics files) every 2 seconds. Each line is a word and a number:
 //   cpu 10     use the processor for 10 ms in each frame, on the game thread
 //   sleep 20   wait for 20 ms in each frame, on the game thread
 //   leak 600   allocate 600 MB each minute and never release it
@@ -17,6 +17,10 @@
 // does not do the fault again.
 
 #include "../../src/PCH.h"
+
+#include "../../src/Abyssus/API.h"
+
+#include <spdlog/sinks/basic_file_sink.h>
 
 #include <algorithm>
 #include <filesystem>
@@ -47,8 +51,7 @@ namespace
 
 	std::filesystem::path InjectPath()
 	{
-		const auto logDir = SKSE::log::log_directory();
-		return logDir ? *logDir / "SkyrimDiagnostics" / "inject.txt" : std::filesystem::path{};
+		return abyssus::ModFolder("SkyrimDiagnostics") / "inject.txt";
 	}
 
 	// Makes the file empty (and makes it if it does not exist).
@@ -181,14 +184,24 @@ namespace
 
 SKSE_PLUGIN_LOAD(const SKSE::LoadInterface* a_skse)
 {
-	// The log file is in the SkyrimDiagnostics folder. Older versions made
-	// it in the SKSE log folder itself: remove that file.
+	// The log file is in Data/SKSE/Plugins/AbyssusLib/SkyrimDiagnostics, with all other
+	// files of SkyrimDiagnostics. Older versions made it in the SKSE log folder (also in its
+	// SkyrimDiagnostics folder): remove those files.
 	SKSE::InitInfo info;
-	info.logName = "SkyrimDiagnostics/SkyrimDiagnosticsFaultTest";
+	info.log = false;
 	SKSE::Init(a_skse, info);
+	{
+		auto sink = std::make_shared<spdlog::sinks::basic_file_sink_mt>((abyssus::ModFolder("SkyrimDiagnostics") / "SkyrimDiagnosticsFaultTest.log").string(), true);
+		auto log = std::make_shared<spdlog::logger>("global", std::move(sink));
+		log->set_level(spdlog::level::info);
+		log->flush_on(spdlog::level::info);
+		spdlog::set_default_logger(std::move(log));
+		spdlog::set_pattern("[%T.%e] [%=5t] [%L] %v");
+	}
 	if (const auto logDir = SKSE::log::log_directory()) {
 		std::error_code ec;
 		std::filesystem::remove(*logDir / "SkyrimDiagnosticsFaultTest.log", ec);
+		std::filesystem::remove(*logDir / "SkyrimDiagnostics" / "SkyrimDiagnosticsFaultTest.log", ec);
 	}
 	SKSE::log::info("SkyrimDiagnosticsFaultTest loaded. This plugin makes faults on purpose. Remove it for normal play.");
 	// An empty command file, so that the user must not make it.
