@@ -4,7 +4,7 @@ cmake_minimum_required(VERSION 3.24)
 # declaration all use it.
 project(
 	SkyrimDiagnostics
-	VERSION 0.2.0
+	VERSION 0.2.1
 	DESCRIPTION "Performance and crash diagnostics for Skyrim SE/AE/VR"
 	LANGUAGES CXX
 )

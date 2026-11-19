@@ -1,9 +1,9 @@
 #pragma once
 
-// From AbyssusLib 2.0.0
+// From AbyssusLib 2.1.0
 // The line above tells which AbyssusLib version this copy comes from. Do not
 // change this copy: the build check of each plugin compares it with the file
-// of that version (tag v2.0.0) in the AbyssusLib repository.
+// of that version (tag v2.1.0) in the AbyssusLib repository.
 
 // AbyssusLib API for other SKSE plugins. Copy this one header into your plugin.
 // It links nothing: it finds AbyssusLib.dll at runtime. If AbyssusLib is not
@@ -18,6 +18,7 @@
 #include <cstdint>
 #include <cstdio>
 #include <deque>
+#include <filesystem>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -25,10 +26,12 @@
 #if defined(_WINDOWS_)
 #	define ABYSSUS_GET_MODULE(a_name) ::GetModuleHandleW(a_name)
 #	define ABYSSUS_GET_PROC(a_module, a_name) ::GetProcAddress(a_module, a_name)
+#	define ABYSSUS_GET_EXE_PATH(a_buffer, a_size) ::GetModuleFileNameW(nullptr, a_buffer, a_size)
 #else
 #	include "REX/W32/KERNEL32.h"
 #	define ABYSSUS_GET_MODULE(a_name) REX::W32::GetModuleHandleW(a_name)
 #	define ABYSSUS_GET_PROC(a_module, a_name) REX::W32::GetProcAddress(a_module, a_name)
+#	define ABYSSUS_GET_EXE_PATH(a_buffer, a_size) REX::W32::GetModuleFileNameW(nullptr, a_buffer, a_size)
 #endif
 
 // Window data. Plain C types.
@@ -92,6 +95,36 @@ extern "C"
 namespace abyssus
 {
 	inline constexpr int kApiVersion = 2;
+
+	// The folder for all files of a mod: its log, its settings (INI) and its data.
+	// <game folder>/Data/SKSE/Plugins/AbyssusLib/<a_mod>/, made if it is not there.
+	// All mods that use AbyssusLib keep their files there, one folder for each mod.
+	// The header finds the folder itself: it works before AbyssusLib.dll is loaded,
+	// and also when AbyssusLib is not installed. With Mod Organizer 2, new files in
+	// the Data folder go to the overwrite folder.
+	inline std::filesystem::path ModFolder(std::string_view a_mod)
+	{
+		wchar_t       buffer[1024] = L"";
+		const auto    length = ABYSSUS_GET_EXE_PATH(buffer, static_cast<std::uint32_t>(sizeof(buffer) / sizeof(buffer[0])));
+		const bool    ok = length > 0 && length < sizeof(buffer) / sizeof(buffer[0]);
+		const auto    game = ok ? std::filesystem::path(buffer).parent_path() : std::filesystem::path{};
+		const auto    folder = game / "Data" / "SKSE" / "Plugins" / "AbyssusLib" / std::filesystem::path(std::string(a_mod));
+		std::error_code ec;
+		std::filesystem::create_directories(folder, ec);
+		return folder;
+	}
+
+	// A file of an older version of a mod (outside ModFolder): if a_new is not there and
+	// a_old is, a_old is copied to a_new (for example the INI file with the user's
+	// settings). The old file stays where it is and is no longer used. True if copied.
+	inline bool AdoptOldFile(const std::filesystem::path& a_old, const std::filesystem::path& a_new)
+	{
+		std::error_code ec;
+		if (std::filesystem::exists(a_new, ec) || !std::filesystem::exists(a_old, ec))
+			return false;
+		std::filesystem::create_directories(a_new.parent_path(), ec);
+		return std::filesystem::copy_file(a_old, a_new, ec) && !ec;
+	}
 
 	enum class Level : int
 	{
@@ -311,3 +344,4 @@ namespace abyssus
 
 #undef ABYSSUS_GET_MODULE
 #undef ABYSSUS_GET_PROC
+#undef ABYSSUS_GET_EXE_PATH

@@ -37,8 +37,10 @@ fix problems.
 | Engine limits (references, plugins, animations), heap memory by mod DLL | Works, in the overlay and the session report |
 | SE 1.5.97, VR, other AE versions | Built, not tested |
 
-All crash, stall and unclean exit reports go to `SkyrimDiagnostics/Reports`
-in the SKSE log folder. Each one has a PROBABLE CAUSE section right after
+All files of the tool are in `Data/SKSE/Plugins/AbyssusLib/SkyrimDiagnostics` (the folder of AbyssusLib for all
+its mods; with Mod Organizer 2 in the overwrite folder): the log, the
+settings, the session reports and the crash reports. All crash, stall and
+unclean exit reports go to `Reports` in that folder. Each one has a PROBABLE CAUSE section right after
 its head lines (and after the QUICK ANSWER of a crash report).
 
 Crash Logger SSE: if it is loaded, it can take a crash before this tool, and
@@ -234,7 +236,8 @@ python tools/phostwood.py import analyzer data/phostwood.json
 
 ## Configuration
 
-All settings are in one file: `Data/SKSE/Plugins/SkyrimDiagnostics.ini`. It
+All settings are in one file: `Data/SKSE/Plugins/AbyssusLib/SkyrimDiagnostics/SkyrimDiagnostics.ini` (the file of
+earlier versions in `Data/SKSE/Plugins` is copied there the first time). It
 has three parts: `[[Settings]]`, `[[Layout]]` (what the overlay shows, and in
 which order) and `[[Suggestions]]` (the mod suggestions of the session
 report). The file has the instructions. If the file is not there, the tool
@@ -272,8 +275,8 @@ its version there.
   "ended N s ago". Colors: critical red, warning yellow, note grey. The Plugins
   warning: over the limit it stays always; near the limit until 1 minute after
   the first cell is loaded.
-- The log file is `SkyrimDiagnostics/SkyrimDiagnostics.log` in the SKSE log folder.
-- Settings are in `Data/SKSE/Plugins/SkyrimDiagnostics.ini` (warning
+- The log file is `Data/SKSE/Plugins/AbyssusLib/SkyrimDiagnostics/SkyrimDiagnostics.log`.
+- Settings are in `Data/SKSE/Plugins/AbyssusLib/SkyrimDiagnostics/SkyrimDiagnostics.ini` (warning
   limits, sampler switches). The file has a comment for
   each setting.
 - `MO2-plugin/skyrim_diagnostics_export.py` in the package is a Mod
@@ -306,7 +309,8 @@ screen and for 10 seconds after it.
 Copy `MO2-plugin/skyrim_diagnostics_export.py` from the build artifact to
 the `plugins` folder of Mod Organizer 2. When the game starts from MO2, the
 plugin writes `mods.tsv`, `files.tsv` and `owners.tsv` to
-`SKSE/Plugins/SkyrimDiagnostics` in the overwrite folder. The tool reads
+`SKSE/Plugins/AbyssusLib/SkyrimDiagnostics` in the overwrite folder (the
+tool also reads the folder of earlier plugin versions). The tool reads
 `owners.tsv` and shows the mod of a DLL in the crash, stall and session
 reports, and the mod of a script (loose `.pex` file) in the session report.
 State: not tested in MO2.
@@ -368,8 +372,7 @@ State: not tested in MO2.
    AbyssusLib version.
 3. Install the archive as a mod in MO2.
 
-The log file is `SkyrimDiagnostics.log` in the SKSE log folder
-(`Documents/My Games/Skyrim Special Edition/SKSE`).
+The log file is `SkyrimDiagnostics.log` in `Data/SKSE/Plugins/AbyssusLib/SkyrimDiagnostics`.
 
 ## Build
 

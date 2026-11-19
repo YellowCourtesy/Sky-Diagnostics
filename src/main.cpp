@@ -109,17 +109,35 @@ namespace
 		return dir;
 	}
 
-	// The log file: SkyrimDiagnostics/SkyrimDiagnostics.log in the SKSE log
-	// folder. Made here, not by SKSE::Init, for the folder rule above.
+	// The folder of all files of the tool: Data/SKSE/Plugins/AbyssusLib/SkyrimDiagnostics
+	// (abyssus::ModFolder: all mods that use AbyssusLib keep their files there, one folder
+	// for each mod). Log, INI, Reports, Sessions, the monitor log and the Mod Organizer 2
+	// data. Earlier versions used Documents/My Games/.../SKSE/SkyrimDiagnostics.
+	const std::filesystem::path& ToolFolder()
+	{
+		static const std::filesystem::path folder = abyssus::ModFolder("SkyrimDiagnostics");
+		return folder;
+	}
+
+	// The Mod Organizer 2 data (mods.tsv, owners.tsv, profile.txt): in the tool folder; the
+	// MO2 plugin of earlier versions wrote it to Data/SKSE/Plugins/SkyrimDiagnostics.
+	std::filesystem::path ModMapFolder()
+	{
+		std::error_code ec;
+		if (std::filesystem::exists(ToolFolder() / "owners.tsv", ec))
+			return ToolFolder();
+		const auto old = GameDir() / "Data" / "SKSE" / "Plugins" / "SkyrimDiagnostics";
+		if (std::filesystem::exists(old / "owners.tsv", ec))
+			return old;
+		return ToolFolder();
+	}
+
+	// The log file: SkyrimDiagnostics.log in the tool folder. Made here, not by SKSE::Init.
 	void SetupLog()
 	{
 		static std::once_flag once;
 		std::call_once(once, [] {
-			const auto dir = SkseLogDir();
-			if (!dir) {
-				return;
-			}
-			const auto path = *dir / "SkyrimDiagnostics" / "SkyrimDiagnostics.log";
+			const auto path = ToolFolder() / "SkyrimDiagnostics.log";
 			std::vector<spdlog::sink_ptr> sinks{
 				std::make_shared<spdlog::sinks::msvc_sink_mt>(),
 				std::make_shared<spdlog::sinks::basic_file_sink_mt>(path.string(), true),
@@ -135,7 +153,13 @@ namespace
 	// The configuration file, as the game sees it.
 	const std::filesystem::path& ConfigFile()
 	{
-		static const std::filesystem::path file = GameDir() / "Data" / "SKSE" / "Plugins" / "SkyrimDiagnostics.ini";
+		static const std::filesystem::path file = [] {
+			const auto path = ToolFolder() / "SkyrimDiagnostics.ini";
+			// The INI of earlier versions (Data/SKSE/Plugins/SkyrimDiagnostics.ini) is copied
+			// here the first time, so the user's settings stay.
+			abyssus::AdoptOldFile(GameDir() / "Data" / "SKSE" / "Plugins" / "SkyrimDiagnostics.ini", path);
+			return path;
+		}();
 		return file;
 	}
 	std::string           g_layoutText;  // its [[Layout]] part
@@ -148,7 +172,7 @@ namespace
 		if (skydiag::modmap::Loaded()) {
 			return;
 		}
-		const auto folder = GameDir() / "Data" / "SKSE" / "Plugins" / "SkyrimDiagnostics";
+		const auto folder = ModMapFolder();
 		if (skydiag::modmap::Load(folder)) {
 			SKSE::log::info("Mod Organizer 2 data: {} files of {} mods.", skydiag::modmap::FileCount(), skydiag::modmap::ModCount());
 			// profile.txt: "<profile name><tab><active mods>" (the MO2 plugin writes it at the game start).
@@ -178,9 +202,17 @@ namespace
 			SKSE::log::error("Crash handler is off: the SKSE log folder was not found.");
 			return;
 		}
-		const auto dataDir = *logDir / "SkyrimDiagnostics";
+		const auto dataDir = ToolFolder();
 		const auto reportDir = dataDir / "Reports";
 		std::error_code ec;
+		// The session history of earlier versions (for the comparison with earlier sessions):
+		// copied here one time.
+		if (const auto oldSessions = *logDir / "SkyrimDiagnostics" / "Sessions";
+			!std::filesystem::exists(dataDir / "Sessions", ec) && std::filesystem::exists(oldSessions, ec)) {
+			std::filesystem::copy(oldSessions, dataDir / "Sessions", std::filesystem::copy_options::recursive, ec);
+			SKSE::log::info("Session history copied from {} ({})", oldSessions.string(), ec ? ec.message() : "done"s);
+			ec.clear();
+		}
 		std::filesystem::create_directories(reportDir, ec);
 		if (ec) {
 			SKSE::log::error("Crash handler is off: could not make the folder {}", reportDir.string());
@@ -250,7 +282,7 @@ namespace
 			options.dataDir = data.c_str();
 			options.skseDir = skse.c_str();
 			options.logPath = monitorLog.c_str();
-			static const std::wstring mods = (GameDir() / "Data" / "SKSE" / "Plugins" / "SkyrimDiagnostics" / "mods.tsv").wstring();
+			static const std::wstring mods = (ModMapFolder() / "mods.tsv").wstring();
 			options.modsFile = mods.c_str();
 			options.freezeSeconds = static_cast<std::uint32_t>(g_settings.stallSeconds);
 			options.openReport = g_settings.openReport;
@@ -1653,7 +1685,7 @@ namespace
 			HookModMemory();
 			if (!skydiag::modmap::Loaded()) {
 				SKSE::log::info("Mod Organizer 2 data: not found at the start (file {}). The tool looks again when the game data is loaded.",
-					(GameDir() / "Data" / "SKSE" / "Plugins" / "SkyrimDiagnostics" / "owners.tsv").string());
+					(ToolFolder() / "owners.tsv").string());
 			}
 		});
 	}

@@ -4,27 +4,27 @@ Mod Organizer 2 plugin for SkyrimDiagnostics.
 When the game starts from MO2, this plugin writes two text files that tell
 SkyrimDiagnostics which mod each file comes from:
 
-  <overwrite>/SKSE/Plugins/SkyrimDiagnostics/mods.tsv
+  <overwrite>/SKSE/Plugins/AbyssusLib/SkyrimDiagnostics/mods.tsv
       one line for each active mod, in priority order (lowest first):
       priority <tab> mod name <tab> version
 
-  <overwrite>/SKSE/Plugins/SkyrimDiagnostics/files.tsv
+  <overwrite>/SKSE/Plugins/AbyssusLib/SkyrimDiagnostics/files.tsv
       one line for each file in the virtual Data folder:
       lower-case path relative to Data <tab> winning mod <tab> number of mods that have the file
 
-  <overwrite>/SKSE/Plugins/SkyrimDiagnostics/owners.tsv
+  <overwrite>/SKSE/Plugins/AbyssusLib/SkyrimDiagnostics/owners.tsv
       the lines of files.tsv for the file types that SkyrimDiagnostics
       reads now: DLL files, compiled scripts (.pex), plugins (.esp, .esm,
       .esl) and archives (.bsa). This file is small, so the game reads it
       fast.
 
 The files are in the MO2 overwrite folder, so the game sees them at
-Data/SKSE/Plugins/SkyrimDiagnostics/.
+Data/SKSE/Plugins/AbyssusLib/SkyrimDiagnostics/.
 
 Install: copy this file to the "plugins" folder of Mod Organizer 2.
 
 How to see if it operates: after you start the game from MO2, the overwrite
-folder has SKSE/Plugins/SkyrimDiagnostics/export-status.txt. The file has
+folder has SKSE/Plugins/AbyssusLib/SkyrimDiagnostics/export-status.txt. The file has
 "OK" and the counts, or "ERROR" and the cause.
 
 State: written from the MO2 type stubs (mobase-stubs 2.5.2).
@@ -90,7 +90,7 @@ class SkyrimDiagnosticsExport(mobase.IPlugin):
         line = f"{datetime.datetime.now().isoformat(timespec='seconds')} SkyrimDiagnostics Export: {text}"
         print(line)
         try:
-            out_dir = os.path.join(self._organizer.overwritePath(), "SKSE", "Plugins", "SkyrimDiagnostics")
+            out_dir = os.path.join(self._organizer.overwritePath(), "SKSE", "Plugins", "AbyssusLib", "SkyrimDiagnostics")
             os.makedirs(out_dir, exist_ok=True)
             with open(os.path.join(out_dir, "export-status.txt"), "w", encoding="utf-8", newline="\n") as out:
                 out.write(line + "\n")
@@ -99,7 +99,7 @@ class SkyrimDiagnosticsExport(mobase.IPlugin):
 
     def _export(self):
         mod_list = self._organizer.modList()
-        out_dir = os.path.join(self._organizer.overwritePath(), "SKSE", "Plugins", "SkyrimDiagnostics")
+        out_dir = os.path.join(self._organizer.overwritePath(), "SKSE", "Plugins", "AbyssusLib", "SkyrimDiagnostics")
         os.makedirs(out_dir, exist_ok=True)
 
         # Active mods, lowest priority first. A later mod wins a file conflict.
